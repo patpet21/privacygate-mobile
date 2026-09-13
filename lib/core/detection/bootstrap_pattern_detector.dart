@@ -12,7 +12,7 @@ class BootstrapPatternDetector implements DetectionEngine {
   );
 
   static final RegExp _phone = RegExp(
-    r'(?<!\d)(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}(?!\d)',
+    r'(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}',
   );
 
   @override
