@@ -38,6 +38,17 @@ class _ProtectScreenState extends State<ProtectScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  'Development bootstrap: protection and restore use the audited PrivacyGate contract. '
+                  'Detection is temporarily limited to email and US-style phone patterns.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _text,
               minLines: 6,
