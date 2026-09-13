@@ -1,108 +1,60 @@
 # Desktop Source Baseline for Mobile Compatibility
 
-Verified against GitHub on 2026-09-12.
+Verified against GitHub on 2026-09-13.
 
 ## Authoritative repository
 
 `patpet21/ai-pm-lab-privacy-gate`
 
-The repository default branch is `main`, but **default branch must not be assumed to be the authoritative Desktop application baseline for this compatibility work**.
+The repository default branch must not be assumed to be the authoritative Desktop baseline for Mobile compatibility work. Every audit read must pin an explicit ref.
 
-## Stable Desktop 0.5.1 baseline
+## Next-release source of truth
 
-Branch:
+Branch: `fix/browser-extension-store-hardening-20260909`
 
-`fix/gmail-addon-marketplace-review-20260908`
+Commit: `754f412596c7f32f04c3f50714dcd064704a3f13`
 
-Commit:
+Commit message: `docs(extension): add 0.0.66 Chrome and Edge release test matrix`
 
-`dc6a83b2a57af3ce6b9053ceffababe44f3cf35d`
+For Mobile architecture and compatibility work, this commit is the single source of truth for the complete next-release Desktop state.
 
-Commit message:
+It is a direct descendant of the Desktop 0.5.1 baseline and is 22 commits ahead and zero commits behind `dc6a83b2a57af3ce6b9053ceffababe44f3cf35d`.
 
-`chore: bump PrivacyGate version to 0.5.1`
+Do not describe `754f412...` as already released. It is the next-release source state under audit.
 
-This commit is the stable Desktop release baseline to use when freezing protection/session/library behavior for Mobile compatibility unless a later Desktop release is explicitly promoted.
+## Historical released baseline
 
-## Current integration / browser-extension hardening head
+Desktop 0.5.1:
 
-Branch:
+- Branch: `fix/gmail-addon-marketplace-review-20260908`
+- Commit: `dc6a83b2a57af3ce6b9053ceffababe44f3cf35d`
+- Commit message: `chore: bump PrivacyGate version to 0.5.1`
 
-`fix/browser-extension-store-hardening-20260909`
+Use this ref only when the question is specifically what changed since Desktop 0.5.1. Do not split normal Mobile compatibility reads between `dc6a83...` and `754f412...`.
 
-HEAD:
+## Gmail lineage note
 
-`754f412596c7f32f04c3f50714dcd064704a3f13`
+The earlier Gmail synchronization branch is `fix/gmail-canonical-sync-20260909` at `8dce4abcedbdb176d9df975d9e26cd074534a50d`.
 
-Commit message:
+`754f412...` is 19 commits ahead of that ref and has it as its merge base, so it is an evolution of that branch rather than a separate alternative source.
 
-`docs(extension): add 0.0.66 Chrome and Edge release test matrix`
+## Default `main` warning
 
-This branch is **22 commits ahead of the 0.5.1 baseline and zero commits behind it**, so it is a direct descendant of `dc6a83...`.
+At the last verification, `main` pointed to `df23551138b479141d59a90f4f7150ab9a12f2be` with commit message `release: publish PrivacyGate 0.5.1 update manifest`.
 
-The verified diff from `dc6a83...` to `754f412...` is concentrated in browser-extension, Gmail add-on, privacy documentation, and browser-extension build/security scripts. No core Desktop `src/ai_pm_lab_privacy_gate/...` application files appear in that compare result.
-
-Therefore:
-
-- use `dc6a83...` as the frozen stable Desktop runtime baseline;
-- use `754f412...` when auditing the latest extension/Gmail integration surface;
-- do not casually treat extension hardening as a new Desktop-core behavioral baseline.
-
-## Gmail canonical synchronization branch
-
-Branch:
-
-`fix/gmail-canonical-sync-20260909`
-
-HEAD:
-
-`8dce4abcedbdb176d9df975d9e26cd074534a50d`
-
-Commit message:
-
-`fix(gmail): sync canonical reviewer and relay script`
-
-This branch is relevant when auditing Gmail integration behavior but is not the Desktop-core baseline by itself.
-
-## Default `main` branch warning
-
-At verification time, `main` points to:
-
-`df23551138b479141d59a90f4f7150ab9a12f2be`
-
-Commit message:
-
-`release: publish PrivacyGate 0.5.1 update manifest`
-
-A GitHub compare between the stable Desktop baseline `dc6a83...` and `main` reports the histories as **diverged**. The compare reports `main` five commits ahead but the stable baseline 1187 commits ahead of the merge base. The visible changed files on the `main` side are web-demo/release/legal files.
-
-For that reason, Mobile compatibility work must **not fetch Desktop behavior from the repository default branch merely because it is named `main`**.
-
-Every audit read should pin an explicit ref.
+Its history diverges from the stable Desktop release lineage. Mobile compatibility work must not read Desktop behavior from `main` merely because it is the default branch.
 
 ## Audit ref policy
 
-When reading Desktop code for Mobile compatibility:
+1. Pin `754f412596c7f32f04c3f50714dcd064704a3f13` for all Desktop source reads used to define Mobile behavior.
+2. Use the same ref for core protection, restore, Library, local API, browser pairing, file workflows, integrations, MCP and extension behavior.
+3. Use `dc6a83...` only for historical release comparisons.
+4. Never omit `ref` in GitHub file reads for this audit.
+5. Record the exact Desktop commit in every compatibility fixture or expected-output test.
+6. If a later Desktop commit is explicitly promoted as the new source of truth, update this file before changing Mobile assumptions.
 
-1. Core protect/detect/restore/session/library/document behavior: pin `dc6a83b2a57af3ce6b9053ceffababe44f3cf35d`.
-2. Browser extension and current Gmail integration behavior: pin `754f412596c7f32f04c3f50714dcd064704a3f13` unless a newer approved integration head is recorded here.
-3. Never omit `ref` in GitHub file reads for the audit.
-4. Record any future promoted Desktop baseline in this file before changing Mobile compatibility assumptions.
-5. Compatibility fixtures should record the Desktop commit that produced the expected output.
+## Verified source areas at `754f412...`
 
-## Next verification before implementation
+The first deep audit has confirmed the relevant Protect/Restore/session paths, including `application/privacy_service.py`, `application/protect_session_service.py`, `domain/models.py`, `infrastructure/storage/library_repository.py`, `infrastructure/storage/ai_library_repository.py`, `infrastructure/security/local_protector.py`, and the browser/local API session, persistence, pairing, restore and file workflow modules.
 
-Before implementing the shared session/mapping contract, inspect the stable baseline at `dc6a83...` for:
-
-- domain models and profiles;
-- Presidio/detection pipeline;
-- placeholder generation;
-- protection modes;
-- reversible mapping representation;
-- restore path;
-- library/storage schema;
-- document metadata and file export pipeline;
-- local API boundaries;
-- MCP exposure rules.
-
-Only after those behaviors are documented should Mobile freeze its own serialized compatibility format.
+The resulting verified behavior is recorded in `DESKTOP_COMPATIBILITY_AUDIT.md`.
