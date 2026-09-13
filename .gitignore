@@ -1,3 +1,10 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+coverage/
+
 # Android / Gradle
 .gradle/
 local.properties
@@ -9,11 +16,18 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# iOS / CocoaPods
+Pods/
+.symlinks/
+Flutter/ephemeral/
+
 # Signing / secrets
 *.jks
 *.keystore
 keystore.properties
 secrets.properties
+*.p12
+*.mobileprovision
 
 # OS
 .DS_Store
