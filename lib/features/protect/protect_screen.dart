@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/settings/privacy_gate_settings.dart';
 import 'protect_controller.dart';
 
 class ProtectScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
   @override
   Widget build(BuildContext context) {
     final state = widget.controller;
+    final settings = state.settings;
     return Scaffold(
       appBar: AppBar(title: const Text('PrivacyGate')),
       body: SafeArea(
@@ -41,10 +43,20 @@ class _ProtectScreenState extends State<ProtectScreen> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(
-                  'Development bootstrap: protection and restore use the audited PrivacyGate contract. '
-                  'Detection is temporarily limited to email and US-style phone patterns.',
-                  style: Theme.of(context).textTheme.bodySmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${settings.profile.name} · ${settings.scopeKey} · ${settings.language} · ${settings.replacementMode.label}',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Development bootstrap: protection rules/settings are wired to the audited contract. '
+                      'The temporary detector still covers only email and US-style phone patterns.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -84,11 +96,21 @@ class _ProtectScreenState extends State<ProtectScreen> {
             if (state.result != null) ...[
               const SizedBox(height: 20),
               const Text('Protected output'),
+              const SizedBox(height: 8),
               SelectableText(state.result!.protectedText),
-              OutlinedButton(
-                onPressed: state.restoreLocally,
-                child: const Text('Restore locally'),
-              ),
+              if (state.result!.replacementMode == ReplacementMode.reversible.wireValue)
+                OutlinedButton(
+                  onPressed: state.restoreLocally,
+                  child: const Text('Restore locally'),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'This protection mode intentionally creates no reversible mapping.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
             ],
             if (state.restoredText.isNotEmpty) ...[
               const SizedBox(height: 16),
