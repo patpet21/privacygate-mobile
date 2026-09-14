@@ -9,9 +9,10 @@ void main() {
       const DetectionRequest(
         text: 'Contact jane@example.com',
         profileKey: 'general_business',
-        scopeKey: 'maximum',
-        language: 'en',
+        scopeKey: 'financial',
+        scanLanguage: 'en',
         entities: ['EMAIL_ADDRESS'],
+        confidenceThreshold: 0.35,
       ),
     );
 

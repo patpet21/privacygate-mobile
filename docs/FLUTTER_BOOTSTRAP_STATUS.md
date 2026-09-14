@@ -2,56 +2,51 @@
 
 Branch: `feat/flutter-cross-platform-bootstrap-20260913`
 
-## Implemented
+## Current state
 
-- Shared Flutter/Dart project manifest for Android and iOS.
-- Mobile app entrypoint with Protect and Settings navigation.
-- Desktop-compatible base models for findings, replacement mappings and protection results.
-- Reversible PrivacyGate placeholder generation using the audited base shape `[[PG_<ENTITY>_<NNN>]]`.
-- Desktop replacement-mode behavior wired for reversible, redact, generic and mask modes.
-- Literal local restore using mappings, applied longest-token-first as on Desktop.
-- Functional `Paste -> Scan -> Review -> Protect -> Restore locally` mobile flow.
-- Temporary email/US-phone detector used only to exercise the mobile flow.
-- Policy-aware `DetectionRequest` carrying canonical profile, scope, language and enabled entities into the detector boundary.
-- Canonical Desktop profile/scope configuration ported into the shared mobile core.
-- Canonical document-language identifiers `en` and `it` exposed in Settings.
-- Audited browser/session turn namespace helper using `B<SESSION8>_T<NNNN>`.
-- Draft portable `SessionManifest`, `ProtectedArtifact`, and `RestoreBundle` logical models.
-- Mobile Vault policy settings for storage limit, retention, device-auth restore gate and Desktop-sync preferences.
-- Mobile Vault and platform key-store interfaces; no plaintext restore mapping persistence is implemented.
-- Source-derived fixture policy and importer for the exact frozen Desktop English v1 benchmark at commit `754f412...`.
-- Dart JSONL fixture loader ready for the canonical Desktop corpus.
-- Unit/contract tests for token shape, replacement modes, restore, repeated-value reuse, session namespace, profiles/scopes, settings, portable manifest metadata, and app-shell rendering.
+The project has moved from a generic bootstrap toward the first Desktop-to-Mobile functional vertical slice: **Text Protect**.
+
+Implemented source now includes:
+
+- shared Flutter/Dart app shell for Android and iOS;
+- Desktop-compatible finding, mapping, protection and session models;
+- reversible/generic/mask/redact protection behavior;
+- longest-token-first local restore;
+- canonical Desktop profile/scope configuration;
+- per-document `ProtectionPolicy` separated from general app/Vault Settings;
+- explicit `scanLanguage` (`en` / `it`) used as detector language, not UI language;
+- Desktop-aligned Protect controls for profile, scope, mode, confidence, paste text, scan and clear;
+- review controls: filter, Protect all, Keep all, Invert, category selection and manual missed-item recovery;
+- second local scan of protected text before copy/export is enabled;
+- Copy protected and Restore locally actions for the text slice;
+- Mobile Vault policy settings kept separate from document scan policy;
+- portable SessionManifest / ProtectedArtifact / RestoreBundle draft models and strict decoder;
+- source-derived fixture policy/importer for the pinned Desktop English v1 benchmark.
+
+See `docs/PROTECT_VERTICAL_SLICE.md` for the exact behavior represented in this slice.
 
 ## Canonical fixture policy
 
-Small hand-written cases remain useful for isolated smoke/contract tests, but they are not detector parity evidence.
+Small hand-written cases are smoke/contract tests only. Detector parity will use the existing Desktop-owned English v1 benchmark at the pinned Desktop commit. Mobile does not rewrite expected labels to fit its implementation.
 
-Detector parity will use the existing Desktop-owned English v1 benchmark. At the pinned Desktop commit it contains 300 frozen synthetic cases, including negative/adversarial cases and exact expected spans. Mobile imports the files with `tool/sync_desktop_fixtures.py`; it does not rewrite expected labels to fit the Mobile implementation.
-
-The pinned Desktop tree does not yet contain an equivalent frozen Italian JSONL pack. Mobile therefore does not invent one and call it parity. Italian compatibility remains tied to canonical Desktop identifiers/regressions until a stable corpus is frozen.
-
-See `docs/CANONICAL_FIXTURE_POLICY.md`.
+The pinned Desktop tree does not yet contain an equivalent frozen Italian JSONL corpus, so Mobile does not invent one and call it parity.
 
 ## Important limitations
 
-`BootstrapPatternDetector` is not the production PrivacyGate detector. It is intentionally limited to email and US-style phone patterns so the cross-platform shell can be exercised now. It must be replaced by the audited Desktop-compatible detector implementation before release.
+`BootstrapPatternDetector` remains temporary and currently detects only the narrow bootstrap patterns. The UI/core flow is real, but production detector parity is not claimed.
 
-The current Dart core uses `toLowerCase()` for repeated-value normalization while Desktop uses Python `casefold()`. Canonical compatibility fixtures must resolve Unicode edge cases before the shared placeholder contract is declared fully frozen.
+The Dart reversible-value normalization currently uses `toLowerCase()` while Desktop uses Python `casefold()`. Canonical fixtures must freeze any Unicode normalization differences.
 
-The portable session object classes represent the current draft contract. They are not yet persisted or transmitted and therefore do not expose a false sync implementation.
-
-Settings are currently in-memory product state. Durable preference storage will be added after the first real Flutter toolchain pass; sensitive RestoreBundle/Vault data will not use ordinary preference storage.
+Mobile Vault/session persistence, native file handling, Android Keystore/iOS Keychain handlers and Desktop pairing/sync are not yet active. No fake persistence or fake connection has been introduced.
 
 ## Native Android/iOS host folders
 
-The repository contains the shared Flutter source, but standard Android/iOS host folders still need to be generated by Flutter SDK with the provisional application namespace `com.aipmlab.privacygate`.
-
-Use:
+Standard Android/iOS Flutter host folders still need to be generated and the checked-in suite executed with a real Flutter toolchain:
 
 ```text
 flutter create --platforms=android,ios --org com.aipmlab --project-name privacygate .
 flutter pub get
+flutter analyze
 flutter test
 ```
 
@@ -61,15 +56,11 @@ Before detector parity runs, synchronize the exact Desktop fixture corpus from a
 python tool/sync_desktop_fixtures.py --desktop-repo <path-to-ai-pm-lab-privacy-gate>
 ```
 
-This reads objects from the pinned commit without checking out or modifying the Desktop working tree.
+## Next gates
 
-Android can then be built/tested locally. iOS compilation and signing require macOS + Xcode.
-
-## Next implementation pass
-
-1. Replace the bootstrap detector with a Desktop-compatible detector implementation that is measured against the imported canonical English v1 corpus.
-2. Add strict portable-session JSON parsing/validation and round-trip fixtures.
-3. Implement native Android Keystore / iOS Keychain handlers behind the existing key-store boundary.
-4. Implement encrypted Mobile Vault persistence and then durable non-sensitive settings storage.
-5. Generate the standard Flutter Android/iOS host projects and run the complete checked-in suite with the real Flutter toolchain before calling the branch buildable.
-6. Add file workflows only after the text core passes canonical parity gates.
+1. Run the real Flutter toolchain and fix any compile/analyzer/test issues before calling the branch buildable.
+2. Replace the temporary detector with a Desktop-compatible detector measured against canonical Desktop fixtures.
+3. Add encrypted Mobile Library/Vault persistence for the completed text slice.
+4. Add Copy/Share/Save workflow only where the native/mobile implementation is real.
+5. Extend the same vertical-slice method to TXT, then PDF/Office/images according to audited Desktop behavior.
+6. Implement trusted Desktop pairing/sync after the session and encrypted Vault objects are stable.

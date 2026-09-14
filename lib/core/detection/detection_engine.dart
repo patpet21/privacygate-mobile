@@ -5,15 +5,19 @@ class DetectionRequest {
     required this.text,
     required this.profileKey,
     required this.scopeKey,
-    required this.language,
+    required this.scanLanguage,
     required this.entities,
+    required this.confidenceThreshold,
   });
 
   final String text;
   final String profileKey;
   final String scopeKey;
-  final String language;
+
+  /// Detector/document language. This is not the app-interface language.
+  final String scanLanguage;
   final List<String> entities;
+  final double confidenceThreshold;
 }
 
 abstract interface class DetectionEngine {

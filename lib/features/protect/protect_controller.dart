@@ -1,55 +1,74 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/detection/detection_engine.dart';
 import '../../core/domain/privacy_finding.dart';
 import '../../core/domain/protection_result.dart';
 import '../../core/protection/privacy_gate_protector.dart';
-import '../../core/settings/privacy_gate_settings.dart';
+import '../../core/protection/protection_policy.dart';
 
 class ProtectController extends ChangeNotifier {
   ProtectController({
     required DetectionEngine detector,
     required PrivacyGateProtector protector,
-    required PrivacyGateSettings settings,
+    required ProtectionPolicy policy,
   })  : _detector = detector,
         _protector = protector,
-        _settings = settings {
-    _settings.addListener(_settingsChanged);
+        _policy = policy {
+    _policy.addListener(_policyChanged);
   }
 
   final DetectionEngine _detector;
   final PrivacyGateProtector _protector;
-  final PrivacyGateSettings _settings;
+  final ProtectionPolicy _policy;
 
   String originalText = '';
   List<PrivacyFinding> findings = const [];
   Set<String> selectedFindingIds = <String>{};
   ProtectionResult? result;
   String restoredText = '';
+  List<PrivacyFinding> residualFindings = const [];
   bool analyzing = false;
+  bool verificationRunning = false;
+  bool verificationPerformed = false;
+  String? verificationError;
+  int _policyRevision = 0;
 
-  PrivacyGateSettings get settings => _settings;
+  ProtectionPolicy get policy => _policy;
+  int get selectedCount => selectedFindingIds.length;
+
+  bool get exportVerified =>
+      result != null &&
+      verificationPerformed &&
+      !verificationRunning &&
+      verificationError == null &&
+      residualFindings.isEmpty;
 
   Future<void> analyze(String text) async {
     originalText = text;
-    result = null;
-    restoredText = '';
+    _clearOutput();
+    findings = const [];
+    selectedFindingIds = <String>{};
+
+    if (text.trim().isEmpty) {
+      notifyListeners();
+      return;
+    }
+
+    final revision = _policyRevision;
     analyzing = true;
     notifyListeners();
     try {
-      findings = await _detector.analyze(
-        DetectionRequest(
-          text: text,
-          profileKey: _settings.profileKey,
-          scopeKey: _settings.scopeKey,
-          language: _settings.language,
-          entities: _settings.enabledEntities,
-        ),
-      );
-      selectedFindingIds = findings.map((item) => item.findingId).toSet();
+      final detected = await _detector.analyze(_requestFor(text));
+      if (revision != _policyRevision) return;
+      findings = List.unmodifiable(detected);
+      selectedFindingIds = detected.map((item) => item.findingId).toSet();
     } finally {
-      analyzing = false;
-      notifyListeners();
+      if (revision == _policyRevision) {
+        analyzing = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -59,44 +78,170 @@ class ProtectController extends ChangeNotifier {
     } else {
       selectedFindingIds.remove(findingId);
     }
+    _clearOutput();
     notifyListeners();
   }
 
-  void protect() {
-    final selected = findings.where(
-      (item) => selectedFindingIds.contains(item.findingId),
+  void selectAll() {
+    selectedFindingIds = findings.map((item) => item.findingId).toSet();
+    _clearOutput();
+    notifyListeners();
+  }
+
+  void keepAll() {
+    selectedFindingIds = <String>{};
+    _clearOutput();
+    notifyListeners();
+  }
+
+  void invertSelection() {
+    final current = selectedFindingIds;
+    selectedFindingIds = findings
+        .where((item) => !current.contains(item.findingId))
+        .map((item) => item.findingId)
+        .toSet();
+    _clearOutput();
+    notifyListeners();
+  }
+
+  void setCategorySelected(String entityType, bool selected) {
+    final matching = findings.where((item) => item.entityType == entityType);
+    for (final finding in matching) {
+      if (selected) {
+        selectedFindingIds.add(finding.findingId);
+      } else {
+        selectedFindingIds.remove(finding.findingId);
+      }
+    }
+    _clearOutput();
+    notifyListeners();
+  }
+
+  void addManualFinding(String value, String entityType) {
+    final requested = value.trim();
+    if (requested.isEmpty || originalText.isEmpty) return;
+
+    final normalizedEntity = entityType.trim().toUpperCase().replaceAll(' ', '_');
+    final parts = requested.split(RegExp(r'\s+'));
+    final pattern = RegExp(
+      parts.map(RegExp.escape).join(r'\s+'),
+      caseSensitive: false,
     );
-    result = _protector.protect(
+    final additions = <PrivacyFinding>[];
+
+    for (final match in pattern.allMatches(originalText)) {
+      final overlaps = findings.any(
+        (item) => match.start < item.end && item.start < match.end,
+      );
+      if (overlaps) continue;
+
+      final contextStart = math.max(0, match.start - 34);
+      final contextEnd = math.min(originalText.length, match.end + 34);
+      additions.add(
+        PrivacyFinding(
+          findingId: 'manual-${match.start}-${match.end}-$normalizedEntity',
+          entityType: normalizedEntity,
+          text: originalText.substring(match.start, match.end),
+          start: match.start,
+          end: match.end,
+          score: 1,
+          context: originalText.substring(contextStart, contextEnd),
+        ),
+      );
+    }
+
+    if (additions.isEmpty) return;
+    final merged = <PrivacyFinding>[...findings, ...additions]
+      ..sort((a, b) => a.start.compareTo(b.start));
+    findings = List.unmodifiable(merged);
+    selectedFindingIds.addAll(additions.map((item) => item.findingId));
+    _clearOutput();
+    notifyListeners();
+  }
+
+  Future<void> protectAndVerify() async {
+    final selected = findings
+        .where((item) => selectedFindingIds.contains(item.findingId))
+        .toList(growable: false);
+    if (selected.isEmpty) return;
+
+    final protected = _protector.protect(
       originalText,
       selected,
-      replacementMode: _settings.replacementMode.wireValue,
+      replacementMode: _policy.replacementMode.wireValue,
     );
+    result = protected;
     restoredText = '';
+    residualFindings = const [];
+    verificationError = null;
+    verificationPerformed = false;
+    verificationRunning = true;
+    final revision = _policyRevision;
     notifyListeners();
+
+    try {
+      final residual = await _detector.analyze(_requestFor(protected.protectedText));
+      if (revision != _policyRevision) return;
+      residualFindings = List.unmodifiable(residual);
+      verificationPerformed = true;
+    } catch (error) {
+      if (revision != _policyRevision) return;
+      verificationError = error.toString();
+      verificationPerformed = true;
+    } finally {
+      if (revision == _policyRevision) {
+        verificationRunning = false;
+        notifyListeners();
+      }
+    }
   }
 
   void restoreLocally() {
     final current = result;
-    if (current == null || current.mappings.isEmpty) {
-      return;
-    }
+    if (current == null || current.mappings.isEmpty) return;
     restoredText = _protector.restore(current.protectedText, current.mappings);
     notifyListeners();
   }
 
-  void _settingsChanged() {
-    // A previous analysis/protected result was produced under a different policy.
-    // Fail closed: require a fresh scan instead of silently reusing stale findings.
+  void clear() {
+    originalText = '';
     findings = const [];
     selectedFindingIds = <String>{};
+    analyzing = false;
+    _clearOutput();
+    notifyListeners();
+  }
+
+  DetectionRequest _requestFor(String text) => DetectionRequest(
+        text: text,
+        profileKey: _policy.profileKey,
+        scopeKey: _policy.scopeKey,
+        scanLanguage: _policy.scanLanguage,
+        entities: _policy.enabledEntities,
+        confidenceThreshold: _policy.confidenceThreshold,
+      );
+
+  void _policyChanged() {
+    _policyRevision += 1;
+    analyzing = false;
+    findings = const [];
+    selectedFindingIds = <String>{};
+    _clearOutput();
+    notifyListeners();
+  }
+
+  void _clearOutput() {
     result = null;
     restoredText = '';
-    notifyListeners();
+    residualFindings = const [];
+    verificationRunning = false;
+    verificationPerformed = false;
+    verificationError = null;
   }
 
   @override
   void dispose() {
-    _settings.removeListener(_settingsChanged);
+    _policy.removeListener(_policyChanged);
     super.dispose();
   }
 }

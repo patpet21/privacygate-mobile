@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/profiles/document_languages.dart';
-import '../../core/profiles/privacy_profiles.dart';
 import '../../core/settings/privacy_gate_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -44,72 +42,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Protection', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: settings.profileKey,
-            decoration: const InputDecoration(
-              labelText: 'Privacy profile',
-              border: OutlineInputBorder(),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                'Profile, protection scope, mode, confidence and scan language are document controls in Protect. Scan language selects the detector language; it is not the app-interface language.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-            items: [
-              for (final profile in profiles)
-                DropdownMenuItem(value: profile.key, child: Text(profile.name)),
-            ],
-            onChanged: (value) {
-              if (value != null) settings.setProfileKey(value);
-            },
           ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: settings.scopeKey,
-            decoration: const InputDecoration(
-              labelText: 'Protection level',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final scope in scopes)
-                DropdownMenuItem(value: scope.key, child: Text(scope.name)),
-            ],
-            onChanged: (value) {
-              if (value != null) settings.setScopeKey(value);
-            },
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: settings.language,
-            decoration: const InputDecoration(
-              labelText: 'Document language',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final language in documentLanguages)
-                DropdownMenuItem(value: language.code, child: Text(language.label)),
-            ],
-            onChanged: (value) {
-              if (value != null) settings.setLanguage(value);
-            },
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<ReplacementMode>(
-            value: settings.replacementMode,
-            decoration: const InputDecoration(
-              labelText: 'Protection mode',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final mode in ReplacementMode.values)
-                DropdownMenuItem(value: mode, child: Text(mode.label)),
-            ],
-            onChanged: (value) {
-              if (value != null) settings.setReplacementMode(value);
-            },
-          ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           Text('Mobile Vault', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
-            'These preferences define the vault policy now. Encrypted persistence is enabled only after the native Keystore/Keychain layer is implemented.',
+            'These preferences define the local Vault policy. Encrypted persistence is enabled only after the native Keystore/Keychain layer is implemented.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),

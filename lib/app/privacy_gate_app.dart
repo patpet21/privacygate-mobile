@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/detection/bootstrap_pattern_detector.dart';
 import '../core/protection/privacy_gate_protector.dart';
+import '../core/protection/protection_policy.dart';
 import '../core/settings/privacy_gate_settings.dart';
 import '../features/protect/protect_controller.dart';
 import '../features/protect/protect_screen.dart';
@@ -16,6 +17,7 @@ class PrivacyGateApp extends StatefulWidget {
 
 class _PrivacyGateAppState extends State<PrivacyGateApp> {
   late final PrivacyGateSettings _settings;
+  late final ProtectionPolicy _protectionPolicy;
   late final ProtectController _protectController;
   var _selectedIndex = 0;
 
@@ -23,16 +25,18 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
   void initState() {
     super.initState();
     _settings = PrivacyGateSettings();
+    _protectionPolicy = ProtectionPolicy();
     _protectController = ProtectController(
       detector: const BootstrapPatternDetector(),
       protector: const PrivacyGateProtector(),
-      settings: _settings,
+      policy: _protectionPolicy,
     );
   }
 
   @override
   void dispose() {
     _protectController.dispose();
+    _protectionPolicy.dispose();
     _settings.dispose();
     super.dispose();
   }

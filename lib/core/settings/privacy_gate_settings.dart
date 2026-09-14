@@ -1,13 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-import '../profiles/document_languages.dart';
-import '../profiles/privacy_profiles.dart';
-
 enum ReplacementMode {
-  reversible('reversible', 'Reversible'),
-  redact('redact', 'Redact'),
-  generic('generic', 'Generic'),
-  mask('mask', 'Mask');
+  reversible('reversible', 'Reversible placeholders'),
+  generic('generic', 'Generic placeholders'),
+  mask('mask', 'Masked values (keep last 4)'),
+  redact('redact', 'Permanent redaction');
 
   const ReplacementMode(this.wireValue, this.label);
   final String wireValue;
@@ -36,12 +33,11 @@ enum VaultRetentionPolicy {
   final String label;
 }
 
+/// Application/Vault preferences only.
+///
+/// Profile, protection scope, replacement mode, confidence and scan language are
+/// per-document controls and live in ProtectionPolicy, matching Desktop Protect.
 class PrivacyGateSettings extends ChangeNotifier {
-  String _profileKey = defaultProfileKey;
-  String _scopeKey = defaultScopeKey;
-  String _language = defaultDocumentLanguage;
-  ReplacementMode _replacementMode = ReplacementMode.reversible;
-
   VaultStoragePreset _vaultStoragePreset = VaultStoragePreset.gb1_5;
   int _customVaultMegabytes = 1536;
   VaultRetentionPolicy _retention = VaultRetentionPolicy.sevenDays;
@@ -49,10 +45,6 @@ class PrivacyGateSettings extends ChangeNotifier {
   bool _syncWhenDesktopAvailable = true;
   bool _removeMobileCopyAfterSync = false;
 
-  String get profileKey => _profileKey;
-  String get scopeKey => _scopeKey;
-  String get language => _language;
-  ReplacementMode get replacementMode => _replacementMode;
   VaultStoragePreset get vaultStoragePreset => _vaultStoragePreset;
   int get customVaultMegabytes => _customVaultMegabytes;
   VaultRetentionPolicy get retention => _retention;
@@ -63,37 +55,6 @@ class PrivacyGateSettings extends ChangeNotifier {
   int get effectiveVaultMegabytes => _vaultStoragePreset == VaultStoragePreset.custom
       ? _customVaultMegabytes
       : _vaultStoragePreset.megabytes;
-
-  PrivacyProfile get profile => getProfile(_profileKey);
-
-  List<String> get enabledEntities => entitiesForScope(profile, _scopeKey);
-
-  void setProfileKey(String value) {
-    getProfile(value);
-    if (_profileKey == value) return;
-    _profileKey = value;
-    notifyListeners();
-  }
-
-  void setScopeKey(String value) {
-    getScope(value);
-    if (_scopeKey == value) return;
-    _scopeKey = value;
-    notifyListeners();
-  }
-
-  void setLanguage(String value) {
-    getDocumentLanguage(value);
-    if (_language == value) return;
-    _language = value;
-    notifyListeners();
-  }
-
-  void setReplacementMode(ReplacementMode value) {
-    if (_replacementMode == value) return;
-    _replacementMode = value;
-    notifyListeners();
-  }
 
   void setVaultStoragePreset(VaultStoragePreset value) {
     if (_vaultStoragePreset == value) return;
