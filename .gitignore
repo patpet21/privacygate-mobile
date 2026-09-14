@@ -21,6 +21,10 @@ Pods/
 .symlinks/
 Flutter/ephemeral/
 
+# Canonical Desktop test corpus is imported from the pinned Desktop commit.
+test/fixtures/desktop_754f412/english/v1/*.jsonl
+test/fixtures/desktop_754f412/english/PROVENANCE.json
+
 # Signing / secrets
 *.jks
 *.keystore
