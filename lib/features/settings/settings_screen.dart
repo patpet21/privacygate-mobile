@@ -28,6 +28,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _refresh() => setState(() {});
 
+  String _storageLabel(int megabytes) {
+    if (megabytes >= 1024) {
+      final gb = megabytes / 1024;
+      return '${gb.toStringAsFixed(gb.truncateToDouble() == gb ? 0 : 1)} GB';
+    }
+    return '$megabytes MB';
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
@@ -119,6 +127,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (value != null) settings.setVaultStoragePreset(value);
             },
           ),
+          if (settings.vaultStoragePreset == VaultStoragePreset.custom) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Custom limit: ${_storageLabel(settings.customVaultMegabytes)}',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            Slider(
+              min: 100,
+              max: 10240,
+              divisions: 100,
+              value: settings.customVaultMegabytes.clamp(100, 10240).toDouble(),
+              label: _storageLabel(settings.customVaultMegabytes),
+              onChanged: (value) => settings.setCustomVaultMegabytes(value.round()),
+            ),
+          ],
           const SizedBox(height: 12),
           DropdownButtonFormField<VaultRetentionPolicy>(
             value: settings.retention,
