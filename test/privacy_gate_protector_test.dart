@@ -5,7 +5,7 @@ import 'package:privacygate/core/protection/privacy_gate_protector.dart';
 void main() {
   const protector = PrivacyGateProtector();
 
-  test('reversible token shape matches Desktop base contract', () {
+  test('contract: reversible token shape matches Desktop base contract', () {
     const text = 'Email jane@example.com';
     const finding = PrivacyFinding(
       findingId: 'email-1',
@@ -23,7 +23,7 @@ void main() {
     expect(protector.restore(result.protectedText, result.mappings), text);
   });
 
-  test('repeated value reuses the same token', () {
+  test('contract: repeated value reuses the same token', () {
     const text = 'jane@example.com then jane@example.com';
     const findings = [
       PrivacyFinding(
@@ -51,5 +51,54 @@ void main() {
       result.protectedText,
       '[[PG_EMAIL_ADDRESS_001]] then [[PG_EMAIL_ADDRESS_001]]',
     );
+  });
+
+  test('contract: redact and generic modes match Desktop outputs', () {
+    const text = 'Value ABC-1234';
+    const finding = PrivacyFinding(
+      findingId: 'id-1',
+      entityType: 'CUSTOMER_ID',
+      text: 'ABC-1234',
+      start: 6,
+      end: 14,
+      score: 1,
+    );
+
+    final redacted = protector.protect(
+      text,
+      const [finding],
+      replacementMode: 'redact',
+    );
+    final generic = protector.protect(
+      text,
+      const [finding],
+      replacementMode: 'generic',
+    );
+
+    expect(redacted.protectedText, 'Value [REDACTED]');
+    expect(redacted.mappings, isEmpty);
+    expect(generic.protectedText, 'Value [[CUSTOMER_ID]]');
+    expect(generic.mappings, isEmpty);
+  });
+
+  test('contract: mask keeps final four alphanumeric characters', () {
+    const text = 'ID AB-123456';
+    const finding = PrivacyFinding(
+      findingId: 'id-1',
+      entityType: 'CUSTOMER_ID',
+      text: 'AB-123456',
+      start: 3,
+      end: 12,
+      score: 1,
+    );
+
+    final result = protector.protect(
+      text,
+      const [finding],
+      replacementMode: 'mask',
+    );
+
+    expect(result.protectedText, 'ID **-**3456');
+    expect(result.mappings, isEmpty);
   });
 }
