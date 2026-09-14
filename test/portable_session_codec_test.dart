@@ -52,11 +52,11 @@ void main() {
       throwsFormatException,
     );
 
+    final mapping = Map<String, Object?>.from(
+      (bundle.toJson()['mappings']! as List<Object?>).single as Map,
+    );
     final duplicate = Map<String, Object?>.from(bundle.toJson())
-      ..['mappings'] = [
-        ...bundle.toJson()['mappings']! as List<Object?>,
-        ...bundle.toJson()['mappings']! as List<Object?>,
-      ];
+      ..['mappings'] = [mapping, Map<String, Object?>.from(mapping)];
     expect(
       () => PortableSessionCodec.decodeRestoreBundle(duplicate),
       throwsFormatException,
