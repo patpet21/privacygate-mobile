@@ -11,8 +11,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
+    var scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('Protected docs'),
+      300,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Protected docs'), findsOneWidget);
     expect(find.text('Blocked actions'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('nav-library')));
     await tester.pumpAndSettle();
@@ -21,6 +29,13 @@ void main() {
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('nav-settings')));
+    await tester.pumpAndSettle();
+    scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('PrivacyGate controls'),
+      350,
+      scrollable: scrollable,
+    );
     await tester.pumpAndSettle();
     expect(find.text('PrivacyGate controls'), findsOneWidget);
     expect(find.text('Account & Devices'), findsOneWidget);
