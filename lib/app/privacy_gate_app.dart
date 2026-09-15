@@ -55,6 +55,7 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: PgColors.blue,
       brightness: Brightness.light,
+    ).copyWith(
       primary: PgColors.blue,
       surface: PgColors.surface,
     );
