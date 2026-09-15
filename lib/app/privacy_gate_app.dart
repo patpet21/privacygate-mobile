@@ -9,6 +9,7 @@ import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/protect/protect_controller.dart';
 import '../features/protect/protect_screen.dart';
+import '../features/restore/restore_screen.dart';
 import '../features/settings/settings_screen.dart';
 import 'mobile_design.dart';
 
@@ -48,6 +49,14 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
   void _selectTab(int index) {
     if (_selectedIndex == index) return;
     setState(() => _selectedIndex = index);
+  }
+
+  void _openRestore(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RestoreScreen(controller: _protectController),
+      ),
+    );
   }
 
   @override
@@ -118,7 +127,10 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
         body: IndexedStack(
           index: _selectedIndex,
           children: [
-            HomeScreen(onSelectTab: _selectTab),
+            HomeScreen(
+              onSelectTab: _selectTab,
+              onOpenRestore: _openRestore,
+            ),
             ProtectScreen(controller: _protectController),
             LibraryScreen(settings: _settings),
             const ActivityScreen(),
