@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/mobile_design.dart';
 import '../../core/settings/privacy_gate_settings.dart';
+import 'settings_module_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({required this.settings, super.key});
@@ -27,6 +28,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _refresh() => setState(() {});
 
+  void _openModule(SettingsModule module) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsModuleScreen(module: module),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
@@ -35,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const PgHeader(),
         const PgTitle(
           title: 'Settings',
-          subtitle: 'Manage your sync, storage, connections, and privacy preferences.',
+          subtitle: 'Manage device privacy, Desktop pairing, services, AI access and organization controls.',
         ),
         PgCard(
           child: Column(
@@ -43,32 +52,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               const PgSectionHeader(title: 'Desktop connection'),
               const SizedBox(height: 12),
-              const Row(
-                children: [
-                  PgIconBox(icon: Icons.laptop_mac_outlined),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Not connected',
-                          style: TextStyle(
-                            color: PgColors.navy,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                          ),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _openModule(SettingsModule.accountDevices),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PgIconBox(icon: Icons.laptop_mac_outlined),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Not connected',
+                              style: TextStyle(
+                                color: PgColors.navy,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 17,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Trusted Desktop pairing will enable sync, organization metadata and Desktop-managed services.',
+                              style: TextStyle(color: PgColors.textSecondary, height: 1.3),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Mobile pairing will be added in the Desktop companion pass.',
-                          style: TextStyle(color: PgColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Icon(Icons.chevron_right_rounded),
+                    ],
                   ),
-                  Icon(Icons.chevron_right_rounded),
-                ],
+                ),
               ),
               const Divider(height: 28),
               SwitchListTile.adaptive(
@@ -88,6 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PgIconBox(
                     icon: Icons.storage_outlined,
@@ -100,7 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Mobile Vault storage',
+                          'Mobile Vault',
                           style: TextStyle(
                             color: PgColors.navy,
                             fontWeight: FontWeight.w800,
@@ -108,8 +126,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         Text(
-                          'Choose how much space to use on this device.',
-                          style: TextStyle(color: PgColors.textSecondary),
+                          'Offline capacity, cleanup and post-sync retention on this device.',
+                          style: TextStyle(color: PgColors.textSecondary, height: 1.3),
                         ),
                       ],
                     ),
@@ -152,7 +170,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 initialValue: settings.retention,
                 decoration: const InputDecoration(
                   labelText: 'Automatic cleanup',
-                  border: OutlineInputBorder(),
                 ),
                 items: [
                   for (final policy in VaultRetentionPolicy.values)
@@ -176,42 +193,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 16),
         PgCard(
-          child: Row(
-            children: [
-              const PgIconBox(
-                icon: Icons.offline_pin_outlined,
-                foreground: PgColors.green,
-                background: PgColors.greenSoft,
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Offline mode',
-                      style: TextStyle(
-                        color: PgColors.navy,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                      ),
-                    ),
-                    Text(
-                      'Encrypted offline persistence is not active until the native Keystore/Keychain adapter is implemented.',
-                      style: TextStyle(color: PgColors.textSecondary, height: 1.35),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        PgCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PgIconBox(
                     icon: Icons.fingerprint_rounded,
@@ -224,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Biometric lock',
+                          'Restore security',
                           style: TextStyle(
                             color: PgColors.navy,
                             fontWeight: FontWeight.w800,
@@ -232,8 +218,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         Text(
-                          'Add an extra layer of protection for restore.',
-                          style: TextStyle(color: PgColors.textSecondary),
+                          'Keep restore mappings local and protect restore with device authentication.',
+                          style: TextStyle(color: PgColors.textSecondary, height: 1.3),
                         ),
                       ],
                     ),
@@ -244,85 +230,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Require biometrics/device auth for restore'),
-                subtitle: const Text('Native enforcement will be wired to Android/iOS secure storage.'),
+                subtitle: const Text('Native enforcement will use Android/iOS secure storage.'),
                 value: settings.requireDeviceAuthForRestore,
                 onChanged: settings.setRequireDeviceAuthForRestore,
+              ),
+              const Divider(height: 24),
+              const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.offline_pin_outlined, color: PgColors.green),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Encrypted offline persistence becomes active after the native Keystore/Keychain adapter is implemented.',
+                      style: TextStyle(color: PgColors.textSecondary, height: 1.3),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: PgCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const PgSectionHeader(title: 'Connected apps'),
-                    const SizedBox(height: 10),
-                    const _ConnectionRow(icon: Icons.mail_outline, label: 'Gmail'),
-                    const _ConnectionRow(icon: Icons.cloud_outlined, label: 'Google Drive'),
-                    const _ConnectionRow(icon: Icons.folder_outlined, label: 'Local Files'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: PgCard(
-                backgroundColor: const Color(0xFFFBFAFF),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const PgSectionHeader(title: 'AI tools & MCP'),
-                    const SizedBox(height: 10),
-                    const PgIconBox(
-                      icon: Icons.auto_awesome,
-                      foreground: PgColors.purple,
-                      background: PgColors.purpleSoft,
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Use protected files with AI tools',
-                      style: TextStyle(
-                        color: PgColors.navy,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'MCP connection is not enabled in this build.',
-                      style: TextStyle(color: PgColors.textSecondary),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(onPressed: null, child: const Text('Manage AI tools')),
-                  ],
-                ),
-              ),
-            ),
+        const SizedBox(height: 22),
+        const Text(
+          'PrivacyGate controls',
+          style: TextStyle(
+            color: PgColors.navy,
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Desktop capabilities are grouped into touch-first modules instead of compressing the Desktop sidebar into mobile navigation.',
+          style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+        ),
+        const SizedBox(height: 14),
+        _SettingsGroup(
+          title: 'Core services',
+          modules: const [
+            SettingsModule.accountDevices,
+            SettingsModule.workspaces,
+            SettingsModule.services,
           ],
+          onOpen: _openModule,
+        ),
+        const SizedBox(height: 12),
+        _SettingsGroup(
+          title: 'Data, AI & governance',
+          modules: const [
+            SettingsModule.apps,
+            SettingsModule.aiMcp,
+            SettingsModule.governance,
+            SettingsModule.policyCenter,
+          ],
+          onOpen: _openModule,
+        ),
+        const SizedBox(height: 12),
+        _SettingsGroup(
+          title: 'Organization',
+          modules: const [
+            SettingsModule.team,
+            SettingsModule.devices,
+          ],
+          onOpen: _openModule,
+        ),
+        const SizedBox(height: 12),
+        _SettingsGroup(
+          title: 'Application',
+          modules: const [SettingsModule.appInfo],
+          onOpen: _openModule,
         ),
         const SizedBox(height: 16),
-        Row(
-          children: const [
-            Expanded(
-              child: _SettingsShortcut(
-                icon: Icons.notifications_none_rounded,
-                title: 'Notifications',
-                subtitle: 'Alerts and sync activity',
+        const PgCard(
+          backgroundColor: Color(0xFFF3F7FF),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PgIconBox(icon: Icons.architecture_outlined, size: 40),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Mobile parity preserves Desktop logic and privacy boundaries, but uses lists, drill-down pages and vertical cards so controls remain readable on phone-size screens.',
+                  style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+                ),
               ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _SettingsShortcut(
-                icon: Icons.shield_outlined,
-                title: 'Privacy defaults',
-                subtitle: 'Default privacy settings',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -337,80 +331,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _ConnectionRow extends StatelessWidget {
-  const _ConnectionRow({required this.icon, required this.label});
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({
+    required this.title,
+    required this.modules,
+    required this.onOpen,
+  });
 
-  final IconData icon;
-  final String label;
+  final String title;
+  final List<SettingsModule> modules;
+  final ValueChanged<SettingsModule> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+    return PgCard(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PgIconBox(icon: icon, size: 34),
-          const SizedBox(width: 8),
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
             child: Text(
-              label,
+              title,
               style: const TextStyle(
-                color: PgColors.navy,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+                color: PgColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
               ),
             ),
           ),
-          const Text(
-            'Off',
-            style: TextStyle(color: PgColors.textSecondary, fontSize: 12),
-          ),
+          for (var index = 0; index < modules.length; index++) ...[
+            _SettingsModuleTile(
+              module: modules[index],
+              onTap: () => onOpen(modules[index]),
+            ),
+            if (index != modules.length - 1)
+              const Divider(height: 1, indent: 62, endIndent: 16),
+          ],
         ],
       ),
     );
   }
 }
 
-class _SettingsShortcut extends StatelessWidget {
-  const _SettingsShortcut({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
+class _SettingsModuleTile extends StatelessWidget {
+  const _SettingsModuleTile({required this.module, required this.onTap});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final SettingsModule module;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return PgCard(
-      child: Row(
-        children: [
-          PgIconBox(icon: icon, size: 38),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: PgColors.navy,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: PgColors.textSecondary, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, size: 18),
-        ],
+    return ListTile(
+      onTap: onTap,
+      leading: PgIconBox(icon: module.icon, size: 38),
+      title: Text(
+        module.title,
+        style: const TextStyle(
+          color: PgColors.navy,
+          fontWeight: FontWeight.w800,
+        ),
       ),
+      subtitle: Text(
+        module.subtitle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: PgColors.textSecondary, height: 1.25),
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded),
     );
   }
 }

@@ -99,12 +99,16 @@ class PgHeader extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      connected ? 'Desktop connected' : 'Desktop not connected',
-                      style: const TextStyle(
-                        color: PgColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        connected ? 'Desktop connected' : 'Desktop not connected',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: PgColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -307,6 +311,52 @@ class PgEmptyState extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Uses horizontal columns on wider layouts and automatically stacks the same
+/// cards on phones. This keeps Desktop-parity content readable without
+/// compressing desktop rows into narrow mobile columns.
+class PgResponsiveColumns extends StatelessWidget {
+  const PgResponsiveColumns({
+    required this.children,
+    this.breakpoint = 620,
+    this.spacing = 12,
+    super.key,
+  });
+
+  final List<Widget> children;
+  final double breakpoint;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (children.isEmpty) return const SizedBox.shrink();
+        if (constraints.maxWidth < breakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1) SizedBox(height: spacing),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              Expanded(child: children[index]),
+              if (index != children.length - 1) SizedBox(width: spacing),
+            ],
+          ],
+        );
+      },
     );
   }
 }

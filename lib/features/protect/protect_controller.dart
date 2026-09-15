@@ -37,6 +37,7 @@ class ProtectController extends ChangeNotifier {
 
   ProtectionPolicy get policy => _policy;
   int get selectedCount => selectedFindingIds.length;
+  bool get hasLocalRestoreMapping => result != null && result!.mappings.isNotEmpty;
 
   bool get exportVerified =>
       result != null &&
@@ -198,9 +199,16 @@ class ProtectController extends ChangeNotifier {
 
   void restoreLocally() {
     final current = result;
-    if (current == null || current.mappings.isEmpty) return;
-    restoredText = _protector.restore(current.protectedText, current.mappings);
+    if (current == null) return;
+    restoreTextLocally(current.protectedText);
+  }
+
+  String restoreTextLocally(String text) {
+    final current = result;
+    if (current == null || current.mappings.isEmpty || text.isEmpty) return '';
+    restoredText = _protector.restore(text, current.mappings);
     notifyListeners();
+    return restoredText;
   }
 
   void clear() {
