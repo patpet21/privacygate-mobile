@@ -445,7 +445,11 @@ class _ProtectScreenState extends State<ProtectScreen> {
 
   void _notReady(String label) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label is not connected in this mobile build yet.')),
+      SnackBar(
+        content: Text(
+          '$label is not connected in this mobile build yet.',
+        ),
+      ),
     );
   }
 
@@ -536,7 +540,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
       children: [
         PgWorkspaceHeader(
           primaryStatus: 'LOCAL PROCESSING',
-          secondaryStatus: protected && state.exportVerified ? 'PROTECTED' : 'REVIEW',
+          secondaryStatus:
+              protected && state.exportVerified ? 'PROTECTED' : 'REVIEW',
           secondaryPositive: protected && state.exportVerified,
           onMenuTap: () => _notReady('Navigation menu'),
         ),
@@ -1275,10 +1280,7 @@ class _DocumentPreviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          if (hasText)
-            const _DocumentTabLabel()
-          else
-            const SizedBox.shrink(),
+          if (hasText) const _DocumentTabLabel() else const SizedBox.shrink(),
           if (hasText) const SizedBox(height: 4),
           Container(
             constraints: BoxConstraints(minHeight: hasText ? 260 : 300),
