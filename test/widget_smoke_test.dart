@@ -31,10 +31,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('workspace-selector')));
       await tester.pumpAndSettle();
       expect(find.text('Choose workspace'), findsOneWidget);
-      expect(find.text('PrivacyGate Personal'), findsOneWidget);
+      expect(find.text('PrivacyGate Personal'), findsWidgets);
       expect(find.text('Enterprise organization'), findsOneWidget);
-      await tester.tap(find.text('PrivacyGate Personal'));
+      await tester.tap(find.text('Enterprise organization'));
       await tester.pumpAndSettle();
+      expect(find.text('Enterprise organization'), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
       final protectScroll = find.byType(ListView).first;
       expect(protectScroll, findsOneWidget);
