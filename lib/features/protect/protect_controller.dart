@@ -9,6 +9,7 @@ import '../../core/domain/privacy_finding.dart';
 import '../../core/domain/protection_result.dart';
 import '../../core/protection/privacy_gate_protector.dart';
 import '../../core/protection/protection_policy.dart';
+import 'protect_state.dart';
 
 class ProtectController extends ChangeNotifier {
   ProtectController({
@@ -31,14 +32,19 @@ class ProtectController extends ChangeNotifier {
   ProtectionResult? result;
   String restoredText = '';
   List<PrivacyFinding> residualFindings = const [];
-  bool analyzing = false;
-  bool verificationRunning = false;
   bool verificationPerformed = false;
   String? verificationError;
-  int _policyRevision = 0;
+
+  ProtectState _state = const ProtectState();
   List<PrivacyFinding> _manualFindings = const [];
+  int _workflowRevision = 0;
 
   ProtectionPolicy get policy => _policy;
+  ProtectState get state => _state;
+  ProtectPhase get phase => _state.phase;
+  ProtectOperation get operation => _state.operation;
+  bool get analyzing => _state.isAnalyzing;
+  bool get verificationRunning => _state.isVerifying;
   int get selectedCount => selectedFindingIds.length;
   bool get hasLocalRestoreMapping => result != null && result!.mappings.isNotEmpty;
 
@@ -59,11 +65,17 @@ class ProtectController extends ChangeNotifier {
         ? selectedFindingIds.intersection(retainedManualIds)
         : <String>{};
 
+    final revision = ++_workflowRevision;
     originalText = text;
-    _clearOutput();
     _manualFindings = List.unmodifiable(retainedManual);
     findings = List.unmodifiable(retainedManual);
     selectedFindingIds = retainedManualSelection;
+    _clearOutput(
+      phase: ProtectPhase.source,
+      operation: text.trim().isEmpty
+          ? ProtectOperation.idle
+          : ProtectOperation.analyzing,
+    );
 
     if (text.trim().isEmpty) {
       notifyListeners();
@@ -74,12 +86,11 @@ class ProtectController extends ChangeNotifier {
       sourceKind: 'text',
       pages: [PageContent(pageNumber: 1, text: text)],
     );
-    final revision = _policyRevision;
-    analyzing = true;
     notifyListeners();
+
     try {
       final detected = await _detector.analyze(_requestFor(sourceDocument));
-      if (revision != _policyRevision) return;
+      if (revision != _workflowRevision) return;
 
       final merged = _mergeDetectedWithManual(detected, _manualFindings);
       findings = List.unmodifiable(merged);
@@ -89,9 +100,10 @@ class ProtectController extends ChangeNotifier {
               retainedManualSelection.contains(finding.findingId))
             finding.findingId,
       };
+      _state = _state.copyWith(phase: ProtectPhase.review);
     } finally {
-      if (revision == _policyRevision) {
-        analyzing = false;
+      if (revision == _workflowRevision) {
+        _state = _state.copyWith(operation: ProtectOperation.idle);
         notifyListeners();
       }
     }
@@ -103,20 +115,17 @@ class ProtectController extends ChangeNotifier {
     } else {
       selectedFindingIds.remove(findingId);
     }
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   void selectAll() {
     selectedFindingIds = findings.map((item) => item.findingId).toSet();
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   void keepAll() {
     selectedFindingIds = <String>{};
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   void invertSelection() {
@@ -125,8 +134,7 @@ class ProtectController extends ChangeNotifier {
         .where((item) => !current.contains(item.findingId))
         .map((item) => item.findingId)
         .toSet();
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   void setCategorySelected(String entityType, bool selected) {
@@ -138,8 +146,7 @@ class ProtectController extends ChangeNotifier {
         selectedFindingIds.remove(finding.findingId);
       }
     }
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   void addManualFinding(String value, String entityType) {
@@ -160,14 +167,12 @@ class ProtectController extends ChangeNotifier {
             end: match.end,
             entityType: normalizedEntity,
             pageNumber: 1,
-            notify: false,
           ) ||
           changed;
     }
 
     if (!changed) return;
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   void addManualFindingRange({
@@ -181,11 +186,9 @@ class ProtectController extends ChangeNotifier {
       end: end,
       entityType: _normalizeEntityType(entityType),
       pageNumber: pageNumber,
-      notify: false,
     );
     if (!changed) return;
-    _clearOutput();
-    notifyListeners();
+    _invalidateOutput(ProtectPhase.review);
   }
 
   Future<void> protectAndVerify() async {
@@ -194,6 +197,7 @@ class ProtectController extends ChangeNotifier {
         .toList(growable: false);
     if (selected.isEmpty) return;
 
+    final revision = ++_workflowRevision;
     final sourceDocument = AnalysisDocument(
       sourceKind: 'text',
       pages: [PageContent(pageNumber: 1, text: originalText)],
@@ -208,8 +212,10 @@ class ProtectController extends ChangeNotifier {
     residualFindings = const [];
     verificationError = null;
     verificationPerformed = false;
-    verificationRunning = true;
-    final revision = _policyRevision;
+    _state = const ProtectState(
+      phase: ProtectPhase.protected,
+      operation: ProtectOperation.verifying,
+    );
     notifyListeners();
 
     try {
@@ -218,16 +224,16 @@ class ProtectController extends ChangeNotifier {
         pages: protected.protectedPages,
       );
       final residual = await _detector.analyze(_requestFor(protectedDocument));
-      if (revision != _policyRevision) return;
+      if (revision != _workflowRevision) return;
       residualFindings = List.unmodifiable(residual);
       verificationPerformed = true;
     } catch (error) {
-      if (revision != _policyRevision) return;
+      if (revision != _workflowRevision) return;
       verificationError = error.toString();
       verificationPerformed = true;
     } finally {
-      if (revision == _policyRevision) {
-        verificationRunning = false;
+      if (revision == _workflowRevision) {
+        _state = _state.copyWith(operation: ProtectOperation.idle);
         notifyListeners();
       }
     }
@@ -248,12 +254,12 @@ class ProtectController extends ChangeNotifier {
   }
 
   void clear() {
+    ++_workflowRevision;
     originalText = '';
     findings = const [];
     selectedFindingIds = <String>{};
     _manualFindings = const [];
-    analyzing = false;
-    _clearOutput();
+    _clearOutput(phase: ProtectPhase.source);
     notifyListeners();
   }
 
@@ -272,7 +278,6 @@ class ProtectController extends ChangeNotifier {
     required int end,
     required String entityType,
     required int pageNumber,
-    required bool notify,
   }) {
     if (pageNumber != 1 || start < 0 || end <= start || end > originalText.length) {
       return false;
@@ -280,27 +285,18 @@ class ProtectController extends ChangeNotifier {
 
     final manual = <PrivacyFinding>[..._manualFindings];
     final working = <PrivacyFinding>[...findings];
-
     final sameRangeManualIndex = manual.indexWhere(
       (item) =>
           item.pageNumber == pageNumber && item.start == start && item.end == end,
     );
+    final existing = sameRangeManualIndex >= 0
+        ? manual[sameRangeManualIndex]
+        : null;
 
-    if (sameRangeManualIndex >= 0) {
-      final existing = manual[sameRangeManualIndex];
-      if (existing.entityType == entityType) {
-        final wasSelected = selectedFindingIds.contains(existing.findingId);
-        selectedFindingIds.add(existing.findingId);
-        if (!wasSelected && notify) {
-          _clearOutput();
-          notifyListeners();
-        }
-        return !wasSelected;
-      }
-
-      manual.removeAt(sameRangeManualIndex);
-      working.removeWhere((item) => item.findingId == existing.findingId);
-      selectedFindingIds.remove(existing.findingId);
+    if (existing != null && existing.entityType == entityType) {
+      final wasSelected = selectedFindingIds.contains(existing.findingId);
+      selectedFindingIds.add(existing.findingId);
+      return !wasSelected;
     }
 
     final candidate = _manualFindingForRange(
@@ -310,8 +306,16 @@ class ProtectController extends ChangeNotifier {
       pageNumber: pageNumber,
     );
 
-    final overlapsManual = manual.any((item) => _overlaps(item, candidate));
+    final overlapsManual = manual.any(
+      (item) => item.findingId != existing?.findingId && _overlaps(item, candidate),
+    );
     if (overlapsManual) return false;
+
+    if (existing != null) {
+      manual.removeWhere((item) => item.findingId == existing.findingId);
+      working.removeWhere((item) => item.findingId == existing.findingId);
+      selectedFindingIds.remove(existing.findingId);
+    }
 
     final overlappingAutomaticIds = working
         .where((item) => !_isManualFinding(item) && _overlaps(item, candidate))
@@ -329,11 +333,6 @@ class ProtectController extends ChangeNotifier {
     _manualFindings = List.unmodifiable(manual);
     findings = List.unmodifiable(working);
     selectedFindingIds.add(candidate.findingId);
-
-    if (notify) {
-      _clearOutput();
-      notifyListeners();
-    }
     return true;
   }
 
@@ -372,22 +371,33 @@ class ProtectController extends ChangeNotifier {
   }
 
   void _policyChanged() {
-    _policyRevision += 1;
-    analyzing = false;
+    ++_workflowRevision;
     final manualIds = _manualFindings.map((item) => item.findingId).toSet();
     selectedFindingIds = selectedFindingIds.intersection(manualIds);
     findings = List.unmodifiable(_manualFindings);
-    _clearOutput();
+    _clearOutput(phase: ProtectPhase.source);
     notifyListeners();
   }
 
-  void _clearOutput() {
+  void _invalidateOutput(ProtectPhase phase) {
+    ++_workflowRevision;
+    _clearOutput(phase: phase);
+    notifyListeners();
+  }
+
+  void _clearOutput({
+    ProtectPhase? phase,
+    ProtectOperation operation = ProtectOperation.idle,
+  }) {
     result = null;
     restoredText = '';
     residualFindings = const [];
-    verificationRunning = false;
     verificationPerformed = false;
     verificationError = null;
+    _state = ProtectState(
+      phase: phase ?? _state.phase,
+      operation: operation,
+    );
   }
 
   static String _normalizeEntityType(String entityType) =>
