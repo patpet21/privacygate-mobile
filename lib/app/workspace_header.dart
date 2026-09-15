@@ -43,71 +43,75 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
   Future<void> _chooseWorkspace() async {
     final selected = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
         final current = _workspace.activeWorkspace;
         return SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Choose workspace',
-                  style: TextStyle(
-                    color: PgColors.navy,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Protect and Restore use the selected workspace context for this app session.',
-                  style: TextStyle(
-                    color: PgColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                for (final workspace in _workspace.workspaces)
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    leading: PgIconBox(
-                      icon: workspace.kind == WorkspaceKind.personal
-                          ? Icons.person_outline_rounded
-                          : Icons.groups_outlined,
-                      size: 42,
+          child: FractionallySizedBox(
+            heightFactor: 0.72,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Choose workspace',
+                    style: TextStyle(
+                      color: PgColors.navy,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
                     ),
-                    title: Text(
-                      workspace.name,
-                      style: const TextStyle(
-                        color: PgColors.navy,
-                        fontWeight: FontWeight.w800,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Protect and Restore use the selected workspace context for this app session.',
+                    style: TextStyle(
+                      color: PgColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final workspace in _workspace.workspaces)
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      leading: PgIconBox(
+                        icon: workspace.kind == WorkspaceKind.personal
+                            ? Icons.person_outline_rounded
+                            : Icons.groups_outlined,
+                        size: 42,
                       ),
+                      title: Text(
+                        workspace.name,
+                        style: const TextStyle(
+                          color: PgColors.navy,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      subtitle: Text(workspace.subtitle),
+                      trailing: Icon(
+                        current.id == workspace.id
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked,
+                        color: current.id == workspace.id
+                            ? PgColors.blue
+                            : PgColors.textSecondary,
+                      ),
+                      onTap: () =>
+                          Navigator.of(sheetContext).pop(workspace.id),
                     ),
-                    subtitle: Text(workspace.subtitle),
-                    trailing: Icon(
-                      current.id == workspace.id
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked,
-                      color: current.id == workspace.id
-                          ? PgColors.blue
-                          : PgColors.textSecondary,
+                  const Divider(height: 20),
+                  const Text(
+                    'Additional synced teams will appear here when organization sync is connected.',
+                    style: TextStyle(
+                      color: PgColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.35,
                     ),
-                    onTap: () => Navigator.of(sheetContext).pop(workspace.id),
                   ),
-                const Divider(height: 20),
-                const Text(
-                  'Additional synced teams will appear here when organization sync is connected.',
-                  style: TextStyle(
-                    color: PgColors.textSecondary,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
