@@ -1,4 +1,6 @@
+import '../domain/page_content.dart';
 import '../domain/privacy_finding.dart';
+import '../domain/protected_span.dart';
 import '../domain/protection_result.dart';
 import '../domain/replacement_mapping.dart';
 
@@ -38,18 +40,42 @@ class PrivacyGateProtector {
       replacements[finding.findingId] = replacement;
     }
 
-    var protectedText = text;
-    for (final finding in findings.reversed) {
-      protectedText = protectedText.replaceRange(
-        finding.start,
-        finding.end,
-        replacements[finding.findingId]!,
-      );
-    }
+    final output = StringBuffer();
+    final protectedSpans = <ProtectedSpan>[];
+    var sourceCursor = 0;
+    var protectedCursor = 0;
 
+    for (final finding in findings) {
+      final untouched = text.substring(sourceCursor, finding.start);
+      output.write(untouched);
+      protectedCursor += untouched.length;
+
+      final replacement = replacements[finding.findingId]!;
+      final spanStart = protectedCursor;
+      output.write(replacement);
+      protectedCursor += replacement.length;
+      protectedSpans.add(
+        ProtectedSpan(
+          pageNumber: finding.pageNumber,
+          start: spanStart,
+          end: protectedCursor,
+          entityType: finding.entityType,
+          findingId: finding.findingId,
+          replacementText: replacement,
+        ),
+      );
+      sourceCursor = finding.end;
+    }
+    output.write(text.substring(sourceCursor));
+
+    final protectedText = output.toString();
     return ProtectionResult(
-      protectedText: protectedText,
-      mappings: mappings.values.toList(growable: false),
+      protectedPages: [
+        PageContent(pageNumber: 1, text: protectedText),
+      ],
+      appliedFindings: List.unmodifiable(findings),
+      mappings: List.unmodifiable(mappings.values),
+      protectedSpans: List.unmodifiable(protectedSpans),
       replacementMode: replacementMode,
     );
   }
