@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:privacygate/core/domain/privacy_finding.dart';
 import 'package:privacygate/core/protection/privacy_gate_protector.dart';
+import 'package:privacygate/core/settings/privacy_gate_settings.dart';
 
 void main() {
   const protector = PrivacyGateProtector();
@@ -20,6 +21,7 @@ void main() {
 
     expect(result.protectedText, 'Email [[PG_EMAIL_ADDRESS_001]]');
     expect(result.mappings.single.originalText, 'jane@example.com');
+    expect(result.replacementMode, 'reversible');
     expect(protector.restore(result.protectedText, result.mappings), text);
   });
 
@@ -53,7 +55,7 @@ void main() {
     );
   });
 
-  test('contract: redact and generic modes match Desktop outputs', () {
+  test('contract: permanent and generic modes match Desktop outputs', () {
     const text = 'Value ABC-1234';
     const finding = PrivacyFinding(
       findingId: 'id-1',
@@ -67,18 +69,20 @@ void main() {
     final redacted = protector.protect(
       text,
       const [finding],
-      replacementMode: 'redact',
+      replacementMode: ReplacementMode.redact,
     );
     final generic = protector.protect(
       text,
       const [finding],
-      replacementMode: 'generic',
+      replacementMode: ReplacementMode.generic,
     );
 
     expect(redacted.protectedText, 'Value [REDACTED]');
     expect(redacted.mappings, isEmpty);
+    expect(redacted.replacementMode, 'redact');
     expect(generic.protectedText, 'Value [[CUSTOMER_ID]]');
     expect(generic.mappings, isEmpty);
+    expect(generic.replacementMode, 'generic');
   });
 
   test('contract: mask keeps final four alphanumeric characters', () {
@@ -95,10 +99,11 @@ void main() {
     final result = protector.protect(
       text,
       const [finding],
-      replacementMode: 'mask',
+      replacementMode: ReplacementMode.mask,
     );
 
     expect(result.protectedText, 'ID **-**3456');
     expect(result.mappings, isEmpty);
+    expect(result.replacementMode, 'mask');
   });
 }
