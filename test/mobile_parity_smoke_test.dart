@@ -17,7 +17,8 @@ void main() {
     expect(find.text('Restore your AI result'), findsOneWidget);
     expect(find.text('No local restore mapping yet'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await tester.pageBack();
+
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     var scrollable = find.byType(Scrollable).first;
