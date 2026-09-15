@@ -5,10 +5,12 @@ import '../../app/mobile_design.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     required this.onSelectTab,
+    required this.onOpenRestore,
     super.key,
   });
 
   final ValueChanged<int> onSelectTab;
+  final void Function(BuildContext context) onOpenRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +21,10 @@ class HomeScreen extends StatelessWidget {
           title: 'Your privacy, your control.',
           subtitle: 'Protect your data, use it confidentially, everywhere.',
         ),
-        _QuickActions(onSelectTab: onSelectTab),
+        _QuickActions(
+          onSelectTab: onSelectTab,
+          onOpenRestore: () => onOpenRestore(context),
+        ),
         const SizedBox(height: 16),
         PgCard(
           child: Column(
@@ -218,32 +223,40 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.onSelectTab});
+  const _QuickActions({
+    required this.onSelectTab,
+    required this.onOpenRestore,
+  });
 
   final ValueChanged<int> onSelectTab;
+  final VoidCallback onOpenRestore;
 
   @override
   Widget build(BuildContext context) {
-    final items = <({IconData icon, String label, String subtitle, VoidCallback? onTap})>[
+    final items = <({String key, IconData icon, String label, String subtitle, VoidCallback? onTap})>[
       (
+        key: 'home-protect',
         icon: Icons.shield_outlined,
         label: 'Protect',
         subtitle: 'Hide sensitive data',
         onTap: () => onSelectTab(1),
       ),
       (
+        key: 'home-restore',
         icon: Icons.history_rounded,
         label: 'Restore',
         subtitle: 'Recover originals',
-        onTap: () => onSelectTab(1),
+        onTap: onOpenRestore,
       ),
       (
+        key: 'home-scan',
         icon: Icons.auto_awesome_outlined,
         label: 'Scan',
         subtitle: 'Find sensitive data',
         onTap: () => onSelectTab(1),
       ),
       (
+        key: 'home-library',
         icon: Icons.folder_outlined,
         label: 'Library',
         subtitle: 'Protected files',
@@ -264,6 +277,7 @@ class _QuickActions extends StatelessWidget {
       itemBuilder: (context, index) {
         final item = items[index];
         return InkWell(
+          key: ValueKey(item.key),
           borderRadius: BorderRadius.circular(18),
           onTap: item.onTap,
           child: PgCard(
