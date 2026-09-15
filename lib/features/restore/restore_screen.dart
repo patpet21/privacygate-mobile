@@ -160,9 +160,7 @@ class _RestoreScreenState extends State<RestoreScreen> {
                       hintText: 'Paste AI result here…',
                       alignLabelWithHint: true,
                     ),
-                    onChanged: (_) {
-                      if (_restored.isNotEmpty) setState(() => _restored = '');
-                    },
+                    onChanged: (_) => setState(() => _restored = ''),
                   ),
                   const SizedBox(height: 10),
                   Wrap(
