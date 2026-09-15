@@ -36,6 +36,7 @@ class ProtectController extends ChangeNotifier {
   bool verificationPerformed = false;
   String? verificationError;
   int _policyRevision = 0;
+  List<PrivacyFinding> _manualFindings = const [];
 
   ProtectionPolicy get policy => _policy;
   int get selectedCount => selectedFindingIds.length;
@@ -49,10 +50,20 @@ class ProtectController extends ChangeNotifier {
       residualFindings.isEmpty;
 
   Future<void> analyze(String text) async {
+    final sameSource = text == originalText;
+    final retainedManual = sameSource
+        ? List<PrivacyFinding>.from(_manualFindings)
+        : <PrivacyFinding>[];
+    final retainedManualIds = retainedManual.map((item) => item.findingId).toSet();
+    final retainedManualSelection = sameSource
+        ? selectedFindingIds.intersection(retainedManualIds)
+        : <String>{};
+
     originalText = text;
     _clearOutput();
-    findings = const [];
-    selectedFindingIds = <String>{};
+    _manualFindings = List.unmodifiable(retainedManual);
+    findings = List.unmodifiable(retainedManual);
+    selectedFindingIds = retainedManualSelection;
 
     if (text.trim().isEmpty) {
       notifyListeners();
@@ -69,8 +80,15 @@ class ProtectController extends ChangeNotifier {
     try {
       final detected = await _detector.analyze(_requestFor(sourceDocument));
       if (revision != _policyRevision) return;
-      findings = List.unmodifiable(detected);
-      selectedFindingIds = detected.map((item) => item.findingId).toSet();
+
+      final merged = _mergeDetectedWithManual(detected, _manualFindings);
+      findings = List.unmodifiable(merged);
+      selectedFindingIds = {
+        for (final finding in merged)
+          if (!_isManualFinding(finding) ||
+              retainedManualSelection.contains(finding.findingId))
+            finding.findingId,
+      };
     } finally {
       if (revision == _policyRevision) {
         analyzing = false;
@@ -128,40 +146,44 @@ class ProtectController extends ChangeNotifier {
     final requested = value.trim();
     if (requested.isEmpty || originalText.isEmpty) return;
 
-    final normalizedEntity = entityType.trim().toUpperCase().replaceAll(' ', '_');
+    final normalizedEntity = _normalizeEntityType(entityType);
     final parts = requested.split(RegExp(r'\s+'));
     final pattern = RegExp(
       parts.map(RegExp.escape).join(r'\s+'),
       caseSensitive: false,
     );
-    final additions = <PrivacyFinding>[];
 
+    var changed = false;
     for (final match in pattern.allMatches(originalText)) {
-      final overlaps = findings.any(
-        (item) => match.start < item.end && item.start < match.end,
-      );
-      if (overlaps) continue;
-
-      final contextStart = math.max(0, match.start - 34);
-      final contextEnd = math.min(originalText.length, match.end + 34);
-      additions.add(
-        PrivacyFinding(
-          findingId: 'manual-${match.start}-${match.end}-$normalizedEntity',
-          entityType: normalizedEntity,
-          text: originalText.substring(match.start, match.end),
-          start: match.start,
-          end: match.end,
-          score: 1,
-          context: originalText.substring(contextStart, contextEnd),
-        ),
-      );
+      changed = _addManualFindingRange(
+            start: match.start,
+            end: match.end,
+            entityType: normalizedEntity,
+            pageNumber: 1,
+            notify: false,
+          ) ||
+          changed;
     }
 
-    if (additions.isEmpty) return;
-    final merged = <PrivacyFinding>[...findings, ...additions]
-      ..sort((a, b) => a.start.compareTo(b.start));
-    findings = List.unmodifiable(merged);
-    selectedFindingIds.addAll(additions.map((item) => item.findingId));
+    if (!changed) return;
+    _clearOutput();
+    notifyListeners();
+  }
+
+  void addManualFindingRange({
+    required int start,
+    required int end,
+    required String entityType,
+    int pageNumber = 1,
+  }) {
+    final changed = _addManualFindingRange(
+      start: start,
+      end: end,
+      entityType: _normalizeEntityType(entityType),
+      pageNumber: pageNumber,
+      notify: false,
+    );
+    if (!changed) return;
     _clearOutput();
     notifyListeners();
   }
@@ -229,6 +251,7 @@ class ProtectController extends ChangeNotifier {
     originalText = '';
     findings = const [];
     selectedFindingIds = <String>{};
+    _manualFindings = const [];
     analyzing = false;
     _clearOutput();
     notifyListeners();
@@ -244,11 +267,116 @@ class ProtectController extends ChangeNotifier {
         confidenceThreshold: _policy.confidenceThreshold,
       );
 
+  bool _addManualFindingRange({
+    required int start,
+    required int end,
+    required String entityType,
+    required int pageNumber,
+    required bool notify,
+  }) {
+    if (pageNumber != 1 || start < 0 || end <= start || end > originalText.length) {
+      return false;
+    }
+
+    final manual = <PrivacyFinding>[..._manualFindings];
+    final working = <PrivacyFinding>[...findings];
+
+    final sameRangeManualIndex = manual.indexWhere(
+      (item) =>
+          item.pageNumber == pageNumber && item.start == start && item.end == end,
+    );
+
+    if (sameRangeManualIndex >= 0) {
+      final existing = manual[sameRangeManualIndex];
+      if (existing.entityType == entityType) {
+        final wasSelected = selectedFindingIds.contains(existing.findingId);
+        selectedFindingIds.add(existing.findingId);
+        if (!wasSelected && notify) {
+          _clearOutput();
+          notifyListeners();
+        }
+        return !wasSelected;
+      }
+
+      manual.removeAt(sameRangeManualIndex);
+      working.removeWhere((item) => item.findingId == existing.findingId);
+      selectedFindingIds.remove(existing.findingId);
+    }
+
+    final candidate = _manualFindingForRange(
+      start: start,
+      end: end,
+      entityType: entityType,
+      pageNumber: pageNumber,
+    );
+
+    final overlapsManual = manual.any((item) => _overlaps(item, candidate));
+    if (overlapsManual) return false;
+
+    final overlappingAutomaticIds = working
+        .where((item) => !_isManualFinding(item) && _overlaps(item, candidate))
+        .map((item) => item.findingId)
+        .toSet();
+
+    working.removeWhere((item) => overlappingAutomaticIds.contains(item.findingId));
+    selectedFindingIds.removeAll(overlappingAutomaticIds);
+
+    manual.add(candidate);
+    working.add(candidate);
+    _sortFindings(manual);
+    _sortFindings(working);
+
+    _manualFindings = List.unmodifiable(manual);
+    findings = List.unmodifiable(working);
+    selectedFindingIds.add(candidate.findingId);
+
+    if (notify) {
+      _clearOutput();
+      notifyListeners();
+    }
+    return true;
+  }
+
+  PrivacyFinding _manualFindingForRange({
+    required int start,
+    required int end,
+    required String entityType,
+    required int pageNumber,
+  }) {
+    final contextStart = math.max(0, start - 34);
+    final contextEnd = math.min(originalText.length, end + 34);
+    return PrivacyFinding(
+      findingId: 'manual-p$pageNumber-$start-$end-$entityType',
+      entityType: entityType,
+      text: originalText.substring(start, end),
+      start: start,
+      end: end,
+      score: 1,
+      pageNumber: pageNumber,
+      context: originalText.substring(contextStart, contextEnd),
+    );
+  }
+
+  List<PrivacyFinding> _mergeDetectedWithManual(
+    List<PrivacyFinding> detected,
+    List<PrivacyFinding> manual,
+  ) {
+    final merged = <PrivacyFinding>[
+      for (final finding in detected)
+        if (!manual.any((manualFinding) => _overlaps(finding, manualFinding)))
+          finding,
+      ...manual,
+    ];
+    _sortFindings(merged);
+    return merged;
+  }
+
   void _policyChanged() {
     _policyRevision += 1;
     analyzing = false;
-    findings = const [];
-    selectedFindingIds = <String>{};
+    final manualIds = _manualFindings.map((item) => item.findingId).toSet();
+    selectedFindingIds = selectedFindingIds.intersection(manualIds);
+    findings = List.unmodifiable(_manualFindings);
     _clearOutput();
     notifyListeners();
   }
@@ -260,6 +388,27 @@ class ProtectController extends ChangeNotifier {
     verificationRunning = false;
     verificationPerformed = false;
     verificationError = null;
+  }
+
+  static String _normalizeEntityType(String entityType) =>
+      entityType.trim().toUpperCase().replaceAll(' ', '_');
+
+  static bool _isManualFinding(PrivacyFinding finding) =>
+      finding.findingId.startsWith('manual-');
+
+  static bool _overlaps(PrivacyFinding first, PrivacyFinding second) =>
+      first.pageNumber == second.pageNumber &&
+      first.start < second.end &&
+      second.start < first.end;
+
+  static void _sortFindings(List<PrivacyFinding> values) {
+    values.sort((a, b) {
+      final pageCompare = a.pageNumber.compareTo(b.pageNumber);
+      if (pageCompare != 0) return pageCompare;
+      final startCompare = a.start.compareTo(b.start);
+      if (startCompare != 0) return startCompare;
+      return a.end.compareTo(b.end);
+    });
   }
 
   @override
