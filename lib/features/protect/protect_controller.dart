@@ -169,7 +169,7 @@ class ProtectController extends ChangeNotifier {
     final protected = _protector.protect(
       originalText,
       selected,
-      replacementMode: _policy.replacementMode.wireValue,
+      replacementMode: _policy.replacementMode,
     );
     result = protected;
     restoredText = '';
