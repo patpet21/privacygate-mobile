@@ -329,8 +329,10 @@ class DesktopRuleDetector implements DetectionEngine {
         continue;
       }
       for (final match in rule.pattern.allMatches(request.text)) {
-        final start = rule.valueGroup == 0 ? match.start : match.start(rule.valueGroup);
-        final end = rule.valueGroup == 0 ? match.end : match.end(rule.valueGroup);
+        final span = _spanForMatch(match, rule.valueGroup);
+        if (span == null) continue;
+        final start = span.$1;
+        final end = span.$2;
         if (start < 0 || end <= start) continue;
         if (tokenSpans.any((span) => start < span.$2 && span.$1 < end)) continue;
 
@@ -385,6 +387,23 @@ class DesktopRuleDetector implements DetectionEngine {
       return start != 0 ? start : a.end.compareTo(b.end);
     });
     return List.unmodifiable(accepted);
+  }
+
+  static (int, int)? _spanForMatch(RegExpMatch match, int valueGroup) {
+    if (valueGroup == 0) return (match.start, match.end);
+
+    final value = match.group(valueGroup);
+    final fullMatch = match.group(0);
+    if (value == null || value.isEmpty || fullMatch == null) return null;
+
+    // Current value-group rules capture the protected value at the end of the
+    // larger context match. Dart Match exposes offsets only for the full match,
+    // so resolve the captured value relative to that match without widening the
+    // protected span to include labels such as "routing number" or "DOB".
+    final relativeStart = fullMatch.lastIndexOf(value);
+    if (relativeStart < 0) return null;
+    final start = match.start + relativeStart;
+    return (start, start + value.length);
   }
 
   static _Rule _contextIdRule(String entityType, String label, String qualifier) => _Rule(
@@ -448,7 +467,7 @@ class DesktopRuleDetector implements DetectionEngine {
   }
 
   static bool _isValidPartitaIva(String value) {
-    var candidate = value.toUpperCase().replaceAll(RegExp(r'[^0-9]'), '');
+    final candidate = value.toUpperCase().replaceAll(RegExp(r'[^0-9]'), '');
     if (candidate.length != 11) return false;
     var total = 0;
     for (var index = 0; index < candidate.length; index += 1) {
