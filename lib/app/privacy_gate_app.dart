@@ -54,7 +54,10 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
   void _openRestore(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => RestoreScreen(controller: _protectController),
+        builder: (_) => RestoreScreen(
+          controller: _protectController,
+          onBackToProtect: () => _selectTab(1),
+        ),
       ),
     );
   }
@@ -98,7 +101,8 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
           style: FilledButton.styleFrom(
             backgroundColor: PgColors.blue,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             textStyle: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
@@ -106,7 +110,8 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
           style: OutlinedButton.styleFrom(
             foregroundColor: PgColors.blue,
             side: const BorderSide(color: Color(0xFFB9D2FF)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
@@ -131,7 +136,10 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
               onSelectTab: _selectTab,
               onOpenRestore: _openRestore,
             ),
-            ProtectScreen(controller: _protectController),
+            ProtectScreen(
+              controller: _protectController,
+              onOpenRestore: _openRestore,
+            ),
             LibraryScreen(settings: _settings),
             const ActivityScreen(),
             SettingsScreen(settings: _settings),
@@ -162,7 +170,8 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
             NavigationDestination(
               key: ValueKey('nav-activity'),
               icon: Icon(Icons.monitor_heart_outlined),
-              selectedIcon: Icon(Icons.monitor_heart_rounded, color: PgColors.blue),
+              selectedIcon:
+                  Icon(Icons.monitor_heart_rounded, color: PgColors.blue),
               label: 'Activity',
             ),
             NavigationDestination(

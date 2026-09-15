@@ -19,7 +19,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _LibraryFilterData('All', Icons.done_rounded),
     _LibraryFilterData('Desktop', Icons.desktop_windows_outlined),
     _LibraryFilterData('Mobile Offline', Icons.phone_android_outlined),
-    _LibraryFilterData('Restoreable', Icons.restore_rounded),
+    _LibraryFilterData('Restorable', Icons.restore_rounded),
     _LibraryFilterData('Favorites', Icons.star_border_rounded),
   ];
 
@@ -148,7 +148,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   children: [
                     status,
                     const SizedBox(height: 12),
-                    const OutlinedButton(onPressed: null, child: Text('Sync now')),
+                    const OutlinedButton(
+                      onPressed: null,
+                      child: Text('Sync now'),
+                    ),
                   ],
                 );
               }
@@ -157,7 +160,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 children: [
                   Expanded(child: status),
                   const SizedBox(width: 12),
-                  const OutlinedButton(onPressed: null, child: Text('Sync now')),
+                  const OutlinedButton(
+                    onPressed: null,
+                    child: Text('Sync now'),
+                  ),
                 ],
               );
             },
@@ -168,7 +174,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PgSectionHeader(title: 'Files in ${_filters[_filter].label.toLowerCase()}'),
+              PgSectionHeader(
+                title: 'Files in ${_filters[_filter].label.toLowerCase()}',
+              ),
               const SizedBox(height: 18),
               PgEmptyState(
                 icon: _filters[_filter].icon,
@@ -269,7 +277,9 @@ class _LibraryFilterBar extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: SegmentedButton<int>(
               segments: [
-                for (var index = 0; index < _LibraryScreenState._filters.length; index++)
+                for (var index = 0;
+                    index < _LibraryScreenState._filters.length;
+                    index++)
                   ButtonSegment(
                     value: index,
                     label: Text(_LibraryScreenState._filters[index].label),
@@ -286,12 +296,16 @@ class _LibraryFilterBar extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (var index = 0; index < _LibraryScreenState._filters.length; index++)
+            for (var index = 0;
+                index < _LibraryScreenState._filters.length;
+                index++)
               ChoiceChip(
                 avatar: Icon(
                   _LibraryScreenState._filters[index].icon,
                   size: 18,
-                  color: selected == index ? PgColors.blue : PgColors.textSecondary,
+                  color: selected == index
+                      ? PgColors.blue
+                      : PgColors.textSecondary,
                 ),
                 label: Text(_LibraryScreenState._filters[index].label),
                 selected: selected == index,

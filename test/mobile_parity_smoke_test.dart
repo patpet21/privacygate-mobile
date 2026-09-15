@@ -3,7 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:privacygate/app/privacy_gate_app.dart';
 
 void main() {
-  testWidgets('phone-width shell stays overflow-free across parity screens', (tester) async {
+  testWidgets('phone-width shell stays overflow-free across parity screens',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -33,7 +34,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('nav-library')));
     await tester.pumpAndSettle();
     expect(find.text('Mobile Offline'), findsOneWidget);
-    expect(find.text('Restoreable'), findsOneWidget);
+    expect(find.text('Restorable'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('nav-settings')));
@@ -52,7 +53,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('repeated tab switching does not trigger lifecycle assertions', (tester) async {
+  testWidgets('repeated tab switching does not trigger lifecycle assertions',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -74,7 +76,11 @@ void main() {
     for (final key in sequence) {
       await tester.tap(find.byKey(ValueKey(key)));
       await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull, reason: 'Tab switch failed at $key');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Tab switch failed at $key',
+      );
     }
   });
 }

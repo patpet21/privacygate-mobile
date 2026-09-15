@@ -8,9 +8,14 @@ import '../../core/settings/privacy_gate_settings.dart';
 import 'protect_controller.dart';
 
 class ProtectScreen extends StatefulWidget {
-  const ProtectScreen({required this.controller, super.key});
+  const ProtectScreen({
+    required this.controller,
+    required this.onOpenRestore,
+    super.key,
+  });
 
   final ProtectController controller;
+  final void Function(BuildContext context) onOpenRestore;
 
   @override
   State<ProtectScreen> createState() => _ProtectScreenState();
@@ -40,18 +45,20 @@ class _ProtectScreenState extends State<ProtectScreen> {
   }
 
   Future<void> _showPasteDialog() async {
-    final draft = TextEditingController(text: _text.text);
+    var draftValue = _text.text;
+
     final value = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Paste text'),
         content: SizedBox(
           width: 520,
-          child: TextField(
-            controller: draft,
+          child: TextFormField(
+            initialValue: draftValue,
             autofocus: true,
             minLines: 8,
             maxLines: 14,
+            onChanged: (value) => draftValue = value,
             decoration: const InputDecoration(
               hintText:
                   'Paste an email, lease excerpt, offer, proposal, or other text.',
@@ -65,17 +72,18 @@ class _ProtectScreenState extends State<ProtectScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(draft.text),
+            onPressed: () => Navigator.of(dialogContext).pop(draftValue),
             child: const Text('Use text'),
           ),
         ],
       ),
     );
-    draft.dispose();
-    if (value == null) return;
+
+    if (!mounted || value == null) return;
+
+    setState(() => _reviewing = false);
     _text.text = value;
     widget.controller.clear();
-    setState(() => _reviewing = false);
   }
 
   Future<void> _showScanOptions() async {
@@ -638,7 +646,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
                       label: const Text('Copy protected'),
                     ),
                     if (state.result!.replacementMode ==
-                        ReplacementMode.reversible.wireValue)
+                        ReplacementMode.reversible.wireValue) ...[
                       OutlinedButton.icon(
                         onPressed: state.result!.mappings.isEmpty
                             ? null
@@ -646,6 +654,14 @@ class _ProtectScreenState extends State<ProtectScreen> {
                         icon: const Icon(Icons.lock_open_outlined),
                         label: const Text('Restore locally'),
                       ),
+                      OutlinedButton.icon(
+                        onPressed: state.result!.mappings.isEmpty
+                            ? null
+                            : () => widget.onOpenRestore(context),
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        label: const Text('Open Restore'),
+                      ),
+                    ],
                   ],
                 ),
               ],

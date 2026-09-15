@@ -102,7 +102,7 @@ Required mobile concepts:
 - All.
 - Desktop.
 - Mobile Offline.
-- Restoreable.
+- Restorable.
 - Favorites.
 - Mobile Vault capacity and storage policy.
 - Desktop sync state.

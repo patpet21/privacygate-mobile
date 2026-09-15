@@ -5,9 +5,14 @@ import '../../app/mobile_design.dart';
 import '../protect/protect_controller.dart';
 
 class RestoreScreen extends StatefulWidget {
-  const RestoreScreen({required this.controller, super.key});
+  const RestoreScreen({
+    required this.controller,
+    required this.onBackToProtect,
+    super.key,
+  });
 
   final ProtectController controller;
+  final VoidCallback onBackToProtect;
 
   @override
   State<RestoreScreen> createState() => _RestoreScreenState();
@@ -81,7 +86,8 @@ class _RestoreScreenState extends State<RestoreScreen> {
         children: [
           const PgTitle(
             title: 'Restore your AI result',
-            subtitle: 'Restore original values after AI processing. Mapping and restored content stay local.',
+            subtitle:
+                'Restore original values after AI processing. Mapping and restored content stay local.',
           ),
           const _RestoreSteps(),
           const SizedBox(height: 16),
@@ -92,11 +98,15 @@ class _RestoreScreenState extends State<RestoreScreen> {
                   const PgEmptyState(
                     icon: Icons.history_rounded,
                     title: 'No local restore mapping yet',
-                    body: 'Protect content with reversible placeholders first. PrivacyGate keeps the mapping on this device for local restore.',
+                    body:
+                        'Protect content with reversible placeholders first. PrivacyGate keeps the mapping on this device for local restore.',
                   ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onBackToProtect();
+                    },
                     icon: const Icon(Icons.shield_outlined),
                     label: const Text('Back to Protect'),
                   ),
@@ -286,40 +296,54 @@ class _RestoreSteps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const steps = [
-      '1 AI result',
-      '2 Match original',
-      '3 Restore',
-      '4 Use result',
+      ('1', 'AI result'),
+      ('2', 'Match'),
+      ('3', 'Restore'),
+      ('4', 'Use'),
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var index = 0; index < steps.length; index++) ...[
-            Chip(
-              avatar: CircleAvatar(
-                radius: 10,
-                backgroundColor: index == 0 ? PgColors.blue : PgColors.blueSoft,
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    color: index == 0 ? Colors.white : PgColors.blue,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+    return Row(
+      children: [
+        for (var index = 0; index < steps.length; index++) ...[
+          Expanded(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      index == 0 ? PgColors.blue : PgColors.blueSoft,
+                  child: Text(
+                    steps[index].$1,
+                    style: TextStyle(
+                      color: index == 0 ? Colors.white : PgColors.blue,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              label: Text(steps[index].substring(2)),
+                const SizedBox(height: 6),
+                Text(
+                  steps[index].$2,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: PgColors.navy,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
-            if (index != steps.length - 1)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(Icons.chevron_right_rounded, size: 18),
-              ),
-          ],
+          ),
+          if (index != steps.length - 1)
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: PgColors.textSecondary,
+            ),
         ],
-      ),
+      ],
     );
   }
 }
