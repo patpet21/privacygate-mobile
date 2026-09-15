@@ -11,6 +11,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
+    await tester.tap(find.byKey(const ValueKey('home-restore')));
+    await tester.pumpAndSettle();
+    expect(find.text('Restore your AI result'), findsOneWidget);
+    expect(find.text('No local restore mapping yet'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
     var scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
       find.text('Protected docs'),
