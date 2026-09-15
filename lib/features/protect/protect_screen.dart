@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../app/mobile_design.dart';
 import '../../core/profiles/document_languages.dart';
 import '../../core/profiles/privacy_profiles.dart';
+import '../../core/protection/protection_policy.dart';
 import '../../core/settings/privacy_gate_settings.dart';
 import 'protect_controller.dart';
 
@@ -774,7 +775,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
                       Chip(
                         visualDensity: VisualDensity.compact,
                         avatar: Icon(_entityIcon(entry.key), size: 17),
-                        label: Text('${_friendlyEntity(entry.key)} ${entry.value}'),
+                        label: Text(
+                          '${_friendlyEntity(entry.key)} ${entry.value}',
+                        ),
                       ),
                   ],
                 ),
@@ -1437,13 +1440,13 @@ class _WorkspaceTab extends StatelessWidget {
 class _LanguageControl extends StatelessWidget {
   const _LanguageControl({required this.policy});
 
-  final dynamic policy;
+  final ProtectionPolicy policy;
 
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       key: ValueKey('workspace-language-${policy.scanLanguage}'),
-      initialValue: policy.scanLanguage as String,
+      initialValue: policy.scanLanguage,
       isDense: true,
       decoration: const InputDecoration(
         labelText: 'Language',
@@ -1719,7 +1722,8 @@ class _ProtectedDocumentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = state.result;
-    final error = state.verificationError != null || state.residualFindings.isNotEmpty;
+    final error =
+        state.verificationError != null || state.residualFindings.isNotEmpty;
 
     return PgCard(
       padding: const EdgeInsets.all(14),
@@ -1782,10 +1786,12 @@ class _ProtectedDocumentCard extends StatelessWidget {
                             icon: error
                                 ? Icons.warning_amber_rounded
                                 : Icons.verified_user_outlined,
-                            foreground:
-                                error ? Theme.of(context).colorScheme.error : const Color(0xFF078A96),
-                            background:
-                                error ? const Color(0xFFFFF3F2) : const Color(0xFFEAF8F8),
+                            foreground: error
+                                ? Theme.of(context).colorScheme.error
+                                : const Color(0xFF078A96),
+                            background: error
+                                ? const Color(0xFFFFF3F2)
+                                : const Color(0xFFEAF8F8),
                             size: 44,
                           ),
                           const SizedBox(width: 10),
