@@ -1,3 +1,4 @@
+import '../domain/analysis_document.dart';
 import '../domain/page_content.dart';
 import '../domain/privacy_finding.dart';
 import '../domain/protected_span.dart';
@@ -9,12 +10,22 @@ class PrivacyGateProtector {
   const PrivacyGateProtector();
 
   ProtectionResult protect(
-    String text,
+    AnalysisDocument document,
     Iterable<PrivacyFinding> selected, {
     ReplacementMode replacementMode = ReplacementMode.reversible,
   }) {
-    final findings = selected.toList()..sort((a, b) => a.start.compareTo(b.start));
-    _validateSpans(text, findings);
+    final findings = selected.toList()
+      ..sort((a, b) {
+        final pageOrder = a.pageNumber.compareTo(b.pageNumber);
+        if (pageOrder != 0) return pageOrder;
+        return a.start.compareTo(b.start);
+      });
+    _validateDocumentFindings(document, findings);
+
+    final byPage = <int, List<PrivacyFinding>>{};
+    for (final finding in findings) {
+      byPage.putIfAbsent(finding.pageNumber, () => <PrivacyFinding>[]).add(finding);
+    }
 
     final counters = <String, int>{};
     final tokenByValue = <String, String>{};
@@ -36,43 +47,69 @@ class PrivacyGateProtector {
       replacements[finding.findingId] = replacement;
     }
 
-    final output = StringBuffer();
+    final protectedPages = <PageContent>[];
     final protectedSpans = <ProtectedSpan>[];
-    var sourceCursor = 0;
-    var protectedCursor = 0;
 
-    for (final finding in findings) {
-      final untouched = text.substring(sourceCursor, finding.start);
-      output.write(untouched);
-      protectedCursor += untouched.length;
+    for (final page in document.pages) {
+      final output = StringBuffer();
+      var sourceCursor = 0;
+      var protectedCursor = 0;
+      final pageFindings = byPage[page.pageNumber] ?? const <PrivacyFinding>[];
 
-      final replacement = replacements[finding.findingId]!;
-      final spanStart = protectedCursor;
-      output.write(replacement);
-      protectedCursor += replacement.length;
-      protectedSpans.add(
-        ProtectedSpan(
-          pageNumber: finding.pageNumber,
-          start: spanStart,
-          end: protectedCursor,
-          entityType: finding.entityType,
-          findingId: finding.findingId,
-          replacementText: replacement,
+      for (final finding in pageFindings) {
+        final untouched = page.text.substring(sourceCursor, finding.start);
+        output.write(untouched);
+        protectedCursor += untouched.length;
+
+        final replacement = replacements[finding.findingId]!;
+        final spanStart = protectedCursor;
+        output.write(replacement);
+        protectedCursor += replacement.length;
+        protectedSpans.add(
+          ProtectedSpan(
+            pageNumber: page.pageNumber,
+            start: spanStart,
+            end: protectedCursor,
+            entityType: finding.entityType,
+            findingId: finding.findingId,
+            replacementText: replacement,
+          ),
+        );
+        sourceCursor = finding.end;
+      }
+
+      output.write(page.text.substring(sourceCursor));
+      protectedPages.add(
+        PageContent(
+          pageNumber: page.pageNumber,
+          text: output.toString(),
+          location: page.location,
         ),
       );
-      sourceCursor = finding.end;
     }
-    output.write(text.substring(sourceCursor));
 
-    final protectedText = output.toString();
     return ProtectionResult(
-      protectedPages: [
-        PageContent(pageNumber: 1, text: protectedText),
-      ],
+      protectedPages: List.unmodifiable(protectedPages),
       appliedFindings: List.unmodifiable(findings),
       mappings: List.unmodifiable(mappings.values),
       protectedSpans: List.unmodifiable(protectedSpans),
       replacementMode: replacementMode.wireValue,
+    );
+  }
+
+  /// Compatibility adapter for the current Paste Text workflow.
+  ProtectionResult protectText(
+    String text,
+    Iterable<PrivacyFinding> selected, {
+    ReplacementMode replacementMode = ReplacementMode.reversible,
+  }) {
+    return protect(
+      AnalysisDocument(
+        sourceKind: 'text',
+        pages: [PageContent(pageNumber: 1, text: text)],
+      ),
+      selected,
+      replacementMode: replacementMode,
     );
   }
 
@@ -120,11 +157,15 @@ class PrivacyGateProtector {
     }
     final keep = alphanumericPositions.length <= visible
         ? alphanumericPositions.toSet()
-        : alphanumericPositions.sublist(alphanumericPositions.length - visible).toSet();
+        : alphanumericPositions
+            .sublist(alphanumericPositions.length - visible)
+            .toSet();
     final output = StringBuffer();
     for (var index = 0; index < value.length; index += 1) {
       final character = value[index];
-      output.write(keep.contains(index) || !_isAlphaNumeric(character) ? character : '*');
+      output.write(
+        keep.contains(index) || !_isAlphaNumeric(character) ? character : '*',
+      );
     }
     return output.toString();
   }
@@ -133,19 +174,36 @@ class PrivacyGateProtector {
     return RegExp(r'^[\p{L}\p{N}]$', unicode: true).hasMatch(character);
   }
 
-  static void _validateSpans(String text, List<PrivacyFinding> findings) {
-    var previousEnd = -1;
+  static void _validateDocumentFindings(
+    AnalysisDocument document,
+    List<PrivacyFinding> findings,
+  ) {
+    final pagesByNumber = <int, PageContent>{
+      for (final page in document.pages) page.pageNumber: page,
+    };
+    final previousEndByPage = <int, int>{};
+
     for (final finding in findings) {
-      if (finding.start < 0 || finding.end > text.length || finding.start >= finding.end) {
+      final page = pagesByNumber[finding.pageNumber];
+      if (page == null) {
+        throw StateError(
+          'Finding references missing page ${finding.pageNumber}: ${finding.findingId}',
+        );
+      }
+      if (
+          finding.start < 0 ||
+          finding.end > page.text.length ||
+          finding.start >= finding.end) {
         throw StateError('Invalid finding span: ${finding.findingId}');
       }
+      final previousEnd = previousEndByPage[finding.pageNumber] ?? -1;
       if (finding.start < previousEnd) {
         throw StateError('Overlapping findings are not accepted.');
       }
-      if (text.substring(finding.start, finding.end) != finding.text) {
+      if (page.text.substring(finding.start, finding.end) != finding.text) {
         throw StateError('Finding text no longer matches the source span.');
       }
-      previousEnd = finding.end;
+      previousEndByPage[finding.pageNumber] = finding.end;
     }
   }
 }

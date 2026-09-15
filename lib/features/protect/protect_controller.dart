@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import '../../core/detection/detection_engine.dart';
+import '../../core/domain/analysis_document.dart';
+import '../../core/domain/page_content.dart';
 import '../../core/domain/privacy_finding.dart';
 import '../../core/domain/protection_result.dart';
 import '../../core/protection/privacy_gate_protector.dart';
@@ -166,8 +168,12 @@ class ProtectController extends ChangeNotifier {
         .toList(growable: false);
     if (selected.isEmpty) return;
 
+    final sourceDocument = AnalysisDocument(
+      sourceKind: 'text',
+      pages: [PageContent(pageNumber: 1, text: originalText)],
+    );
     final protected = _protector.protect(
-      originalText,
+      sourceDocument,
       selected,
       replacementMode: _policy.replacementMode,
     );

@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:privacygate/core/domain/analysis_document.dart';
+import 'package:privacygate/core/domain/page_content.dart';
 import 'package:privacygate/core/domain/privacy_finding.dart';
 import 'package:privacygate/core/protection/privacy_gate_protector.dart';
 import 'package:privacygate/core/settings/privacy_gate_settings.dart';
@@ -17,7 +19,7 @@ void main() {
       score: 1,
     );
 
-    final result = protector.protect(text, const [finding]);
+    final result = protector.protectText(text, const [finding]);
 
     expect(result.protectedText, 'Email [[PG_EMAIL_ADDRESS_001]]');
     expect(result.mappings.single.originalText, 'jane@example.com');
@@ -46,7 +48,7 @@ void main() {
       ),
     ];
 
-    final result = protector.protect(text, findings);
+    final result = protector.protectText(text, findings);
 
     expect(result.mappings, hasLength(1));
     expect(
@@ -66,12 +68,12 @@ void main() {
       score: 1,
     );
 
-    final redacted = protector.protect(
+    final redacted = protector.protectText(
       text,
       const [finding],
       replacementMode: ReplacementMode.redact,
     );
-    final generic = protector.protect(
+    final generic = protector.protectText(
       text,
       const [finding],
       replacementMode: ReplacementMode.generic,
@@ -96,7 +98,7 @@ void main() {
       score: 1,
     );
 
-    final result = protector.protect(
+    final result = protector.protectText(
       text,
       const [finding],
       replacementMode: ReplacementMode.mask,
@@ -105,5 +107,63 @@ void main() {
     expect(result.protectedText, 'ID **-**3456');
     expect(result.mappings, isEmpty);
     expect(result.replacementMode, 'mask');
+  });
+
+  test('contract: document protection preserves pages and reuses mappings', () {
+    const document = AnalysisDocument(
+      sourceKind: 'pdf',
+      sourcePath: 'lease.pdf',
+      pages: [
+        PageContent(
+          pageNumber: 1,
+          text: 'Email jane@example.com',
+          location: 'page-1',
+        ),
+        PageContent(
+          pageNumber: 2,
+          text: 'Again jane@example.com',
+          location: 'page-2',
+        ),
+      ],
+    );
+    const findings = [
+      PrivacyFinding(
+        findingId: 'email-1',
+        entityType: 'EMAIL_ADDRESS',
+        text: 'jane@example.com',
+        start: 6,
+        end: 22,
+        score: 1,
+        pageNumber: 1,
+      ),
+      PrivacyFinding(
+        findingId: 'email-2',
+        entityType: 'EMAIL_ADDRESS',
+        text: 'jane@example.com',
+        start: 6,
+        end: 22,
+        score: 1,
+        pageNumber: 2,
+      ),
+    ];
+
+    final result = protector.protect(document, findings);
+
+    expect(result.protectedPages, hasLength(2));
+    expect(result.protectedPages[0].location, 'page-1');
+    expect(result.protectedPages[1].location, 'page-2');
+    expect(result.mappings, hasLength(1));
+    expect(result.protectedSpans, hasLength(2));
+    expect(result.appliedFindings, hasLength(2));
+    expect(
+      result.protectedPages[0].text,
+      'Email [[PG_EMAIL_ADDRESS_001]]',
+    );
+    expect(
+      result.protectedPages[1].text,
+      'Again [[PG_EMAIL_ADDRESS_001]]',
+    );
+    expect(result.protectedSpans[0].pageNumber, 1);
+    expect(result.protectedSpans[1].pageNumber, 2);
   });
 }
