@@ -15,6 +15,14 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   var _filter = 0;
 
+  static const _filters = [
+    _LibraryFilterData('All', Icons.done_rounded),
+    _LibraryFilterData('Desktop', Icons.desktop_windows_outlined),
+    _LibraryFilterData('Mobile Offline', Icons.phone_android_outlined),
+    _LibraryFilterData('Restoreable', Icons.restore_rounded),
+    _LibraryFilterData('Favorites', Icons.star_border_rounded),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -39,18 +47,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           title: 'Library',
           subtitle: 'Your protected files, available everywhere.',
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('All')),
-              ButtonSegment(value: 1, label: Text('Desktop'), icon: Icon(Icons.desktop_windows_outlined)),
-              ButtonSegment(value: 2, label: Text('Mobile Offline'), icon: Icon(Icons.phone_android_outlined)),
-              ButtonSegment(value: 3, label: Text('Favorites'), icon: Icon(Icons.star_border_rounded)),
-            ],
-            selected: {_filter},
-            onSelectionChanged: (value) => setState(() => _filter = value.first),
-          ),
+        _LibraryFilterBar(
+          selected: _filter,
+          onSelected: (value) => setState(() => _filter = value),
         ),
         const SizedBox(height: 16),
         PgCard(
@@ -108,36 +107,60 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 16),
         PgCard(
           backgroundColor: PgColors.greenSoft,
-          child: Row(
-            children: [
-              const PgIconBox(
-                icon: Icons.desktop_windows_outlined,
-                foreground: PgColors.green,
-                background: Colors.white,
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 410;
+              final status = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const PgIconBox(
+                    icon: Icons.desktop_windows_outlined,
+                    foreground: PgColors.green,
+                    background: Colors.white,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Desktop not connected',
+                          style: TextStyle(
+                            color: PgColors.navy,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Pairing and sync are not enabled in this build yet.',
+                          style: TextStyle(color: PgColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Desktop not connected',
-                      style: TextStyle(
-                        color: PgColors.navy,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Pairing and sync are not enabled in this build yet.',
-                      style: TextStyle(color: PgColors.textSecondary),
-                    ),
+                    status,
+                    const SizedBox(height: 12),
+                    const OutlinedButton(onPressed: null, child: Text('Sync now')),
                   ],
-                ),
-              ),
-              OutlinedButton(onPressed: null, child: const Text('Sync now')),
-            ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: status),
+                  const SizedBox(width: 12),
+                  const OutlinedButton(onPressed: null, child: Text('Sync now')),
+                ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 16),
@@ -145,12 +168,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PgSectionHeader(title: 'Files in your library'),
+              PgSectionHeader(title: 'Files in ${_filters[_filter].label.toLowerCase()}'),
               const SizedBox(height: 18),
               PgEmptyState(
-                icon: _filter == 3 ? Icons.star_border_rounded : Icons.folder_outlined,
+                icon: _filters[_filter].icon,
                 title: 'No files here yet',
-                body: 'Protected files and offline sessions will appear here once Vault persistence is implemented.',
+                body: _emptyStateBody(_filter),
               ),
             ],
           ),
@@ -183,6 +206,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        const PgCard(
+          backgroundColor: Color(0xFFF3F7FF),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PgIconBox(icon: Icons.verified_user_outlined),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Library keeps Desktop parity at the data boundary: only protected copies can become available to AI. Originals and restore mappings remain outside MCP access.',
+                  style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -194,4 +234,79 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     return '$megabytes MB capacity';
   }
+
+  String _emptyStateBody(int filter) {
+    switch (filter) {
+      case 1:
+        return 'Desktop-protected documents appear here after a trusted pairing and sync.';
+      case 2:
+        return 'Files explicitly kept for offline mobile access appear here.';
+      case 3:
+        return 'Protected files with a local restore mapping appear here.';
+      case 4:
+        return 'Favorite protected files appear here.';
+      default:
+        return 'Protected files and offline sessions will appear here once Vault persistence is implemented.';
+    }
+  }
+}
+
+class _LibraryFilterBar extends StatelessWidget {
+  const _LibraryFilterBar({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 560) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<int>(
+              segments: [
+                for (var index = 0; index < _LibraryScreenState._filters.length; index++)
+                  ButtonSegment(
+                    value: index,
+                    label: Text(_LibraryScreenState._filters[index].label),
+                    icon: Icon(_LibraryScreenState._filters[index].icon),
+                  ),
+              ],
+              selected: {selected},
+              onSelectionChanged: (value) => onSelected(value.first),
+            ),
+          );
+        }
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var index = 0; index < _LibraryScreenState._filters.length; index++)
+              ChoiceChip(
+                avatar: Icon(
+                  _LibraryScreenState._filters[index].icon,
+                  size: 18,
+                  color: selected == index ? PgColors.blue : PgColors.textSecondary,
+                ),
+                label: Text(_LibraryScreenState._filters[index].label),
+                selected: selected == index,
+                onSelected: (_) => onSelected(index),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LibraryFilterData {
+  const _LibraryFilterData(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
 }

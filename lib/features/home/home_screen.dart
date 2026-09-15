@@ -73,7 +73,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 5),
                         Text(
-                          'Desktop sync and connected apps will appear here after pairing is implemented.',
+                          'Protect works locally now. Desktop sync, policy, apps, MCP and organization metadata appear after pairing.',
                           style: TextStyle(
                             color: PgColors.textSecondary,
                             height: 1.35,
@@ -88,107 +88,97 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        const _OverviewMetrics(),
+        const SizedBox(height: 16),
+        PgResponsiveColumns(
           children: [
-            Expanded(
-              child: PgCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PgSectionHeader(
-                      title: 'Recent documents',
-                      action: 'View all',
-                      onAction: () => onSelectTab(2),
-                    ),
-                    const SizedBox(height: 14),
-                    const PgEmptyState(
-                      icon: Icons.description_outlined,
-                      title: 'No protected files yet',
-                      body: 'Protected documents will appear here.',
-                    ),
-                  ],
-                ),
+            PgCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  PgSectionHeader(
+                    title: 'Recent documents',
+                    action: 'View all',
+                    onAction: () => onSelectTab(2),
+                  ),
+                  const SizedBox(height: 14),
+                  const PgEmptyState(
+                    icon: Icons.description_outlined,
+                    title: 'No protected files yet',
+                    body: 'Protected documents will appear here when Vault persistence is enabled.',
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: PgCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const PgSectionHeader(title: 'Connected apps'),
-                    const SizedBox(height: 10),
-                    const _MiniConnection(icon: Icons.mail_outline, label: 'Gmail'),
-                    const _MiniConnection(icon: Icons.cloud_outlined, label: 'Google Drive'),
-                    const _MiniConnection(icon: Icons.auto_awesome_outlined, label: 'AI tools'),
-                  ],
-                ),
+            const PgCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  PgSectionHeader(title: 'Connected apps'),
+                  SizedBox(height: 10),
+                  _MiniConnection(icon: Icons.mail_outline, label: 'Gmail'),
+                  _MiniConnection(icon: Icons.cloud_outlined, label: 'Google Drive'),
+                  _MiniConnection(icon: Icons.folder_outlined, label: 'Local Files'),
+                ],
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        PgResponsiveColumns(
           children: [
-            Expanded(
-              child: PgCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PgSectionHeader(
-                      title: 'Recent activity',
-                      action: 'View all',
-                      onAction: () => onSelectTab(3),
-                    ),
-                    const SizedBox(height: 12),
-                    const PgEmptyState(
-                      icon: Icons.monitor_heart_outlined,
-                      title: 'No activity yet',
-                      body: 'Protection and restore events will be listed here.',
-                    ),
-                  ],
-                ),
+            PgCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  PgSectionHeader(
+                    title: 'Recent activity',
+                    action: 'View all',
+                    onAction: () => onSelectTab(3),
+                  ),
+                  const SizedBox(height: 12),
+                  const PgEmptyState(
+                    icon: Icons.monitor_heart_outlined,
+                    title: 'No activity yet',
+                    body: 'Protection, restore, sync and connection events will be listed here.',
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: PgCard(
-                backgroundColor: const Color(0xFFFBFAFF),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const PgSectionHeader(title: 'AI tools & MCP'),
-                    const SizedBox(height: 10),
-                    const PgIconBox(
-                      icon: Icons.auto_awesome,
-                      foreground: PgColors.purple,
-                      background: PgColors.purpleSoft,
+            PgCard(
+              backgroundColor: const Color(0xFFFBFAFF),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const PgSectionHeader(title: 'AI tools & MCP'),
+                  const SizedBox(height: 10),
+                  const PgIconBox(
+                    icon: Icons.auto_awesome,
+                    foreground: PgColors.purple,
+                    background: PgColors.purpleSoft,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Use protected files with AI tools',
+                    style: TextStyle(
+                      color: PgColors.navy,
+                      fontWeight: FontWeight.w800,
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Use protected files with AI tools',
-                      style: TextStyle(
-                        color: PgColors.navy,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'The mobile app keeps the same protected-Library boundary as Desktop. MCP controls are exposed from Settings.',
+                    style: TextStyle(
+                      color: PgColors.textSecondary,
+                      height: 1.35,
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Desktop MCP connection is planned for a later integration pass.',
-                      style: TextStyle(
-                        color: PgColors.textSecondary,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () => onSelectTab(4),
-                      child: const Text('Manage settings'),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: () => onSelectTab(4),
+                    child: const Text('Manage AI & MCP'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -213,7 +203,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Sensitive-data processing stays local in the current mobile build.',
+                      'Sensitive-data detection, protection and restore mappings remain local in the current mobile build.',
                       style: TextStyle(color: PgColors.textSecondary),
                     ),
                   ],
@@ -269,7 +259,7 @@ class _QuickActions extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.45,
+        childAspectRatio: 1.08,
       ),
       itemBuilder: (context, index) {
         final item = items[index];
@@ -277,27 +267,34 @@ class _QuickActions extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           onTap: item.onTap,
           child: PgCard(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             backgroundColor: index == 0 ? const Color(0xFFF2F7FF) : PgColors.surface,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                PgIconBox(icon: item.icon),
-                const SizedBox(height: 10),
+                PgIconBox(icon: item.icon, size: 44),
+                const SizedBox(height: 8),
                 Text(
                   item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: index == 0 ? PgColors.blue : PgColors.navy,
                     fontWeight: FontWeight.w800,
                     fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   item.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: PgColors.textSecondary,
                     fontSize: 12,
+                    height: 1.2,
                   ),
                 ),
               ],
@@ -307,6 +304,85 @@ class _QuickActions extends StatelessWidget {
       },
     );
   }
+}
+
+class _OverviewMetrics extends StatelessWidget {
+  const _OverviewMetrics();
+
+  @override
+  Widget build(BuildContext context) {
+    const metrics = [
+      _MetricData(Icons.description_outlined, 'Protected docs', '0', 'Vault persistence pending'),
+      _MetricData(Icons.gpp_good_outlined, 'Blocked actions', '0', 'No persisted events'),
+      _MetricData(Icons.devices_outlined, 'Device status', 'Local', 'Desktop not paired'),
+      _MetricData(Icons.hub_outlined, 'AI access', 'Off', 'MCP not connected'),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: metrics.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.25,
+      ),
+      itemBuilder: (context, index) {
+        final metric = metrics[index];
+        return PgCard(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              PgIconBox(icon: metric.icon, size: 36),
+              const SizedBox(height: 8),
+              Text(
+                metric.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: PgColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                metric.value,
+                style: const TextStyle(
+                  color: PgColors.navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                metric.caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: PgColors.textSecondary,
+                  fontSize: 11,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MetricData {
+  const _MetricData(this.icon, this.label, this.value, this.caption);
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String caption;
 }
 
 class _MiniConnection extends StatelessWidget {
