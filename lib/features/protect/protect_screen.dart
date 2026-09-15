@@ -1163,10 +1163,12 @@ class _HighFidelityInfo extends StatelessWidget {
         borderRadius: BorderRadius.circular(11),
         border: Border.all(color: PgColors.border),
       ),
-      child: const Row(
+      child: const Wrap(
+        spacing: 7,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Icon(Icons.description_outlined, color: PgColors.blue, size: 18),
-          SizedBox(width: 7),
           Text(
             'High-fidelity preview',
             style: TextStyle(
@@ -1174,15 +1176,11 @@ class _HighFidelityInfo extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Built-in preview remains available on mobile.',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: PgColors.textSecondary,
-                fontSize: 11,
-              ),
+          Text(
+            'Built-in preview remains available on mobile.',
+            style: TextStyle(
+              color: PgColors.textSecondary,
+              fontSize: 11,
             ),
           ),
         ],
@@ -1207,13 +1205,17 @@ class _InfoPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFB9D2FF)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        spacing: 5,
+        runSpacing: 2,
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Icon(icon, size: 16, color: PgColors.blue),
-          const SizedBox(width: 5),
           Text(
             label,
+            textAlign: TextAlign.center,
+            softWrap: true,
             style: const TextStyle(
               color: PgColors.blue,
               fontSize: 10,
