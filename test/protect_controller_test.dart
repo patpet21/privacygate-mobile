@@ -4,6 +4,7 @@ import 'package:privacygate/core/detection/detection_engine.dart';
 import 'package:privacygate/core/protection/privacy_gate_protector.dart';
 import 'package:privacygate/core/protection/protection_policy.dart';
 import 'package:privacygate/features/protect/protect_controller.dart';
+import 'package:privacygate/features/protect/protect_state.dart';
 
 void main() {
   test('changing scan language invalidates findings and requires a fresh scan', () async {
@@ -168,6 +169,76 @@ void main() {
       controller.selectedFindingIds,
       contains(controller.findings.single.findingId),
     );
+
+    controller.dispose();
+    policy.dispose();
+  });
+
+  test('workflow state moves from source to review to protected', () async {
+    final policy = ProtectionPolicy();
+    final controller = ProtectController(
+      detector: const DocumentDetectionEngine(BootstrapPatternDetector()),
+      protector: const PrivacyGateProtector(),
+      policy: policy,
+    );
+
+    expect(controller.phase, ProtectPhase.source);
+    expect(controller.operation, ProtectOperation.idle);
+    expect(controller.analyzing, isFalse);
+    expect(controller.verificationRunning, isFalse);
+
+    await controller.analyze('Contact jane@example.com');
+    expect(controller.phase, ProtectPhase.review);
+    expect(controller.operation, ProtectOperation.idle);
+
+    await controller.protectAndVerify();
+    expect(controller.phase, ProtectPhase.protected);
+    expect(controller.operation, ProtectOperation.idle);
+    expect(controller.exportVerified, isTrue);
+
+    controller.dispose();
+    policy.dispose();
+  });
+
+  test('changing policy returns protected workflow to source phase', () async {
+    final policy = ProtectionPolicy();
+    final controller = ProtectController(
+      detector: const DocumentDetectionEngine(BootstrapPatternDetector()),
+      protector: const PrivacyGateProtector(),
+      policy: policy,
+    );
+
+    await controller.analyze('Contact jane@example.com');
+    await controller.protectAndVerify();
+    expect(controller.phase, ProtectPhase.protected);
+
+    policy.setScanLanguage('it');
+
+    expect(controller.phase, ProtectPhase.source);
+    expect(controller.operation, ProtectOperation.idle);
+    expect(controller.result, isNull);
+
+    controller.dispose();
+    policy.dispose();
+  });
+
+  test('clear resets workflow state to source and idle', () async {
+    final policy = ProtectionPolicy();
+    final controller = ProtectController(
+      detector: const DocumentDetectionEngine(BootstrapPatternDetector()),
+      protector: const PrivacyGateProtector(),
+      policy: policy,
+    );
+
+    await controller.analyze('Contact jane@example.com');
+    expect(controller.phase, ProtectPhase.review);
+
+    controller.clear();
+
+    expect(controller.phase, ProtectPhase.source);
+    expect(controller.operation, ProtectOperation.idle);
+    expect(controller.findings, isEmpty);
+    expect(controller.result, isNull);
 
     controller.dispose();
     policy.dispose();
