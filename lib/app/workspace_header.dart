@@ -123,30 +123,34 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final brand = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.onMenuTap,
-              icon: const Icon(Icons.menu_rounded, color: PgColors.navy),
-            ),
-            const Icon(
-              Icons.shield_outlined,
-              color: PgColors.blue,
-              size: 28,
-            ),
-            const SizedBox(width: 7),
-            const Text(
-              'PrivacyGate',
-              style: TextStyle(
-                color: PgColors.navy,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
+        final brand = FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.onMenuTap,
+                icon: const Icon(Icons.menu_rounded, color: PgColors.navy),
               ),
-            ),
-          ],
+              const Icon(
+                Icons.shield_outlined,
+                color: PgColors.blue,
+                size: 28,
+              ),
+              const SizedBox(width: 7),
+              const Text(
+                'PrivacyGate',
+                style: TextStyle(
+                  color: PgColors.navy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
         );
 
         final selector = InkWell(
@@ -162,7 +166,6 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
               border: Border.all(color: PgColors.border),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   active.kind == WorkspaceKind.personal
@@ -172,7 +175,7 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
                   size: 22,
                 ),
                 const SizedBox(width: 8),
-                Flexible(
+                Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,6 +235,7 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
               Row(
                 children: [
                   Expanded(child: brand),
+                  const SizedBox(width: 8),
                   const CircleAvatar(
                     radius: 20,
                     backgroundColor: PgColors.purple,
@@ -257,8 +261,8 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
           children: [
             Row(
               children: [
-                brand,
-                const Spacer(),
+                Expanded(child: brand),
+                const SizedBox(width: 12),
                 const CircleAvatar(
                   radius: 20,
                   backgroundColor: PgColors.purple,
@@ -277,7 +281,7 @@ class _PgWorkspaceHeaderState extends State<PgWorkspaceHeader> {
               children: [
                 Expanded(child: selector),
                 const SizedBox(width: 12),
-                status,
+                Flexible(child: status),
               ],
             ),
           ],
