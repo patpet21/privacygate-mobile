@@ -189,21 +189,19 @@ class PgCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: backgroundColor,
+    return Material(
+      color: backgroundColor,
+      elevation: 2,
+      shadowColor: const Color(0x1415223A),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: PgColors.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D15223A),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
+        side: const BorderSide(color: PgColors.border),
       ),
-      child: child,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: padding,
+        child: child,
+      ),
     );
   }
 }
