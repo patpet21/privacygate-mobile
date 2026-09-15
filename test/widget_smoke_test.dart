@@ -18,7 +18,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Document workspace'), findsOneWidget);
-    expect(find.text('Paste text'), findsAtLeastNWidgets(1));
+    expect(find.text('Paste text'), findsWidgets);
     expect(find.text('Original document'), findsOneWidget);
     expect(find.text('Protected document'), findsOneWidget);
     expect(find.byKey(const ValueKey('scan-options')), findsOneWidget);
