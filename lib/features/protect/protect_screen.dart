@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/mobile_design.dart';
 import '../../core/profiles/document_languages.dart';
 import '../../core/profiles/privacy_profiles.dart';
 import '../../core/settings/privacy_gate_settings.dart';
@@ -17,34 +18,651 @@ class ProtectScreen extends StatefulWidget {
 
 class _ProtectScreenState extends State<ProtectScreen> {
   final _text = TextEditingController();
-  final _filter = TextEditingController();
+  bool _reviewing = false;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_refresh);
-    _text.addListener(_refreshLocal);
-    _filter.addListener(_refreshLocal);
+    _text.addListener(_refresh);
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_refresh);
-    _text.removeListener(_refreshLocal);
-    _filter.removeListener(_refreshLocal);
+    _text.removeListener(_refresh);
     _text.dispose();
-    _filter.dispose();
     super.dispose();
   }
 
-  void _refresh() => setState(() {});
-  void _refreshLocal() => setState(() {});
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showPasteDialog() async {
+    final draft = TextEditingController(text: _text.text);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Paste text'),
+        content: SizedBox(
+          width: 520,
+          child: TextField(
+            controller: draft,
+            autofocus: true,
+            minLines: 8,
+            maxLines: 14,
+            decoration: const InputDecoration(
+              hintText: 'Paste an email, lease excerpt, offer, proposal, or other text.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(draft.text),
+            child: const Text('Use text'),
+          ),
+        ],
+      ),
+    );
+    draft.dispose();
+    if (value == null) return;
+    _text.text = value;
+    widget.controller.clear();
+    setState(() => _reviewing = false);
+  }
+
+  Future<void> _showScanOptions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final policy = widget.controller.policy;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Scan options',
+                    style: TextStyle(
+                      color: PgColors.navy,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'These apply to this document only. Scan language is separate from the app-interface language.',
+                    style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+                  ),
+                  const SizedBox(height: 18),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('scope-${policy.scopeKey}'),
+                    initialValue: policy.scopeKey,
+                    decoration: const InputDecoration(
+                      labelText: 'Protection scope',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final scope in scopes)
+                        DropdownMenuItem(value: scope.key, child: Text(scope.name)),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      policy.setScopeKey(value);
+                      setSheetState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<ReplacementMode>(
+                    key: ValueKey('mode-${policy.replacementMode.name}'),
+                    initialValue: policy.replacementMode,
+                    decoration: const InputDecoration(
+                      labelText: 'Protection mode',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final mode in ReplacementMode.values)
+                        DropdownMenuItem(value: mode, child: Text(mode.label)),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      policy.setReplacementMode(value);
+                      setSheetState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('language-${policy.scanLanguage}'),
+                    initialValue: policy.scanLanguage,
+                    decoration: const InputDecoration(
+                      labelText: 'Scan language',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final language in documentLanguages)
+                        DropdownMenuItem(
+                          value: language.code,
+                          child: Text(language.label),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      policy.setScanLanguage(value);
+                      setSheetState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Detection confidence',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Text(policy.confidenceThreshold.toStringAsFixed(2)),
+                    ],
+                  ),
+                  Slider(
+                    min: 0.10,
+                    max: 0.95,
+                    divisions: 17,
+                    value: policy.confidenceThreshold,
+                    onChanged: (value) {
+                      policy.setConfidenceThreshold(value);
+                      setSheetState(() {});
+                    },
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _scan() async {
+    if (_text.text.trim().isEmpty || widget.controller.analyzing) return;
+    await widget.controller.analyze(_text.text);
+    if (!mounted) return;
+    setState(() => _reviewing = true);
+  }
+
+  void _notReady(String label) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label is planned for a later mobile integration pass.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _reviewing ? _buildReview(context) : _buildImport(context);
+  }
+
+  Widget _buildImport(BuildContext context) {
+    final state = widget.controller;
+    final policy = state.policy;
+    final primaryProfiles = profiles.take(4).toList(growable: false);
+
+    return PgPage(
+      children: [
+        const PgHeader(),
+        const PgTitle(
+          title: 'Protect data',
+          subtitle: 'Import your files, messages, or content to scan and protect.',
+        ),
+        PgCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const PgSectionHeader(title: 'Import from'),
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.23,
+                children: [
+                  _ImportTile(
+                    icon: Icons.content_paste_outlined,
+                    title: 'Paste text',
+                    subtitle: _text.text.trim().isEmpty
+                        ? 'Add text or sensitive content'
+                        : '${_text.text.trim().length} characters ready',
+                    active: _text.text.trim().isNotEmpty,
+                    onTap: _showPasteDialog,
+                  ),
+                  _ImportTile(
+                    icon: Icons.upload_file_outlined,
+                    title: 'Upload file',
+                    subtitle: 'PDF, DOCX, XLSX, PPT and more',
+                    onTap: () => _notReady('File import'),
+                  ),
+                  _ImportTile(
+                    icon: Icons.photo_camera_outlined,
+                    title: 'Scan with camera',
+                    subtitle: 'Scan documents and photos',
+                    onTap: () => _notReady('Camera scan'),
+                  ),
+                  _ImportTile(
+                    icon: Icons.mail_outline,
+                    title: 'Gmail',
+                    subtitle: 'Import from your inbox',
+                    onTap: () => _notReady('Gmail import'),
+                  ),
+                  _ImportTile(
+                    icon: Icons.cloud_outlined,
+                    title: 'Google Drive',
+                    subtitle: 'Import from your Drive',
+                    onTap: () => _notReady('Google Drive import'),
+                  ),
+                  _ImportTile(
+                    icon: Icons.folder_outlined,
+                    title: 'Local files',
+                    subtitle: 'Browse files on this device',
+                    onTap: () => _notReady('Local file picker'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PgCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const PgSectionHeader(title: 'Protection profile'),
+              const Text(
+                'Choose how to categorize and protect this content.',
+                style: TextStyle(color: PgColors.textSecondary),
+              ),
+              const SizedBox(height: 14),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: primaryProfiles.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.25,
+                ),
+                itemBuilder: (context, index) {
+                  final profile = primaryProfiles[index];
+                  final selected = policy.profileKey == profile.key;
+                  return _ProfileTile(
+                    profile: profile,
+                    selected: selected,
+                    onTap: () => policy.setProfileKey(profile.key),
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                key: const ValueKey('scan-options'),
+                onPressed: _showScanOptions,
+                icon: const Icon(Icons.tune_rounded),
+                label: Text(
+                  'Scan options · ${policy.scanLanguage.toUpperCase()} · ${getScope(policy.scopeKey).name}',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PgCard(
+          backgroundColor: const Color(0xFFF3F7FF),
+          child: const Row(
+            children: [
+              PgIconBox(icon: Icons.desktop_windows_outlined),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Desktop Vault sync is not connected yet',
+                      style: TextStyle(
+                        color: PgColors.blue,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'This build protects text locally. Desktop pairing and encrypted Vault persistence come next.',
+                      style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PgCard(
+          child: Row(
+            children: [
+              const PgIconBox(icon: Icons.description_outlined),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Current import',
+                      style: TextStyle(
+                        color: PgColors.navy,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _text.text.trim().isEmpty
+                          ? 'No content selected yet'
+                          : 'Pasted text · ${_text.text.trim().length} characters',
+                      style: const TextStyle(color: PgColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              if (_text.text.trim().isNotEmpty)
+                IconButton(
+                  tooltip: 'Clear import',
+                  onPressed: () {
+                    _text.clear();
+                    state.clear();
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 54,
+          child: FilledButton.icon(
+            key: const ValueKey('continue-scan'),
+            onPressed: _text.text.trim().isEmpty || state.analyzing ? null : _scan,
+            icon: state.analyzing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.arrow_forward_rounded),
+            label: Text(state.analyzing ? 'Scanning locally…' : 'Continue to scan'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReview(BuildContext context) {
+    final state = widget.controller;
+    final categories = <String, int>{};
+    for (final finding in state.findings) {
+      categories.update(finding.entityType, (count) => count + 1, ifAbsent: () => 1);
+    }
+
+    return PgPage(
+      children: [
+        const PgHeader(),
+        TextButton.icon(
+          onPressed: () => setState(() => _reviewing = false),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Back to import'),
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+        ),
+        const SizedBox(height: 4),
+        const PgTitle(
+          title: 'Review detections',
+          subtitle: 'Review found sensitive data and choose what to protect.',
+        ),
+        PgCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const PgIconBox(icon: Icons.description_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Pasted text',
+                          style: TextStyle(
+                            color: PgColors.navy,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${state.findings.length} detections · ${state.policy.profile.name}',
+                          style: const TextStyle(color: PgColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (categories.isNotEmpty) ...[
+                const Divider(height: 28),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final entry in categories.entries)
+                      Chip(
+                        avatar: Icon(_entityIcon(entry.key), size: 18),
+                        label: Text('${_friendlyEntity(entry.key)} ${entry.value}'),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PgCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: PgSectionHeader(
+                      title: 'Detected items (${state.findings.length})',
+                    ),
+                  ),
+                  Text(
+                    '${state.selectedCount} protect',
+                    style: const TextStyle(
+                      color: PgColors.blue,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const Text(
+                'Switch off an item to keep it unchanged.',
+                style: TextStyle(color: PgColors.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(onPressed: state.selectAll, child: const Text('Protect all')),
+                  OutlinedButton(onPressed: state.keepAll, child: const Text('Keep all')),
+                  OutlinedButton(onPressed: state.invertSelection, child: const Text('Invert')),
+                  OutlinedButton.icon(
+                    onPressed: _showManualFindingDialog,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add missed item'),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              if (state.findings.isEmpty)
+                const PgEmptyState(
+                  icon: Icons.verified_user_outlined,
+                  title: 'No sensitive items found',
+                  body: 'You can go back, change scan options, or add a missed item manually after rescanning.',
+                )
+              else
+                for (final finding in state.findings)
+                  Column(
+                    children: [
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        secondary: PgIconBox(
+                          icon: _entityIcon(finding.entityType),
+                          size: 38,
+                        ),
+                        title: Text(
+                          finding.text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: PgColors.navy,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(_friendlyEntity(finding.entityType)),
+                        value: state.selectedFindingIds.contains(finding.findingId),
+                        onChanged: (value) => state.setSelected(finding.findingId, value),
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PgCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const PgSectionHeader(title: 'Protected output'),
+              const SizedBox(height: 4),
+              Text(
+                state.result == null
+                    ? 'Protect selected items, then PrivacyGate performs a second local scan before copy/restore actions are enabled.'
+                    : _verificationMessage(state),
+                style: TextStyle(
+                  color: state.verificationError != null || state.residualFindings.isNotEmpty
+                      ? Theme.of(context).colorScheme.error
+                      : PgColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+              if (state.result != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: PgColors.background,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: PgColors.border),
+                  ),
+                  child: SelectableText(state.result!.protectedText),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: state.exportVerified ? _copyProtected : null,
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('Copy protected'),
+                    ),
+                    if (state.result!.replacementMode == ReplacementMode.reversible.wireValue)
+                      OutlinedButton.icon(
+                        onPressed: state.result!.mappings.isEmpty ? null : state.restoreLocally,
+                        icon: const Icon(Icons.lock_open_outlined),
+                        label: const Text('Restore locally'),
+                      ),
+                  ],
+                ),
+              ],
+              if (state.restoredText.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                const Text(
+                  'Restored locally',
+                  style: TextStyle(
+                    color: PgColors.navy,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(state.restoredText),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 54,
+          child: FilledButton.icon(
+            onPressed: state.selectedCount == 0 || state.verificationRunning
+                ? null
+                : state.protectAndVerify,
+            icon: state.verificationRunning
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.shield_rounded),
+            label: Text(
+              state.verificationRunning
+                  ? 'Protecting & verifying…'
+                  : 'Protect & verify (${state.selectedCount})',
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Vault save is intentionally not shown as completed: encrypted Mobile Vault persistence and Desktop pairing are not implemented yet.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: PgColors.textSecondary, fontSize: 12, height: 1.35),
+        ),
+      ],
+    );
+  }
 
   Future<void> _copyProtected() async {
-    final state = widget.controller;
-    final current = state.result;
-    if (current == null || !state.exportVerified) return;
-    await Clipboard.setData(ClipboardData(text: current.protectedText));
+    final result = widget.controller.result;
+    if (result == null || !widget.controller.exportVerified) return;
+    await Clipboard.setData(ClipboardData(text: result.protectedText));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Protected text copied.')),
@@ -76,7 +694,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: entityType,
+                initialValue: entityType,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Category',
@@ -113,401 +731,162 @@ class _ProtectScreenState extends State<ProtectScreen> {
     valueController.dispose();
   }
 
-  void _clear() {
-    _text.clear();
-    _filter.clear();
-    widget.controller.clear();
+  String _verificationMessage(ProtectController state) {
+    if (state.verificationRunning) return 'Running the second local scan…';
+    if (state.verificationError != null) {
+      return 'Second scan failed. Copy/export remains blocked.';
+    }
+    if (state.residualFindings.isNotEmpty) {
+      return 'Second scan found ${state.residualFindings.length} residual sensitive item(s). Copy/export remains blocked.';
+    }
+    if (state.verificationPerformed) {
+      return 'Second local scan passed. Protected copy actions are enabled.';
+    }
+    return 'Second local scan has not run yet.';
   }
+
+  IconData _entityIcon(String entity) {
+    if (entity.contains('EMAIL')) return Icons.mail_outline_rounded;
+    if (entity.contains('PHONE')) return Icons.phone_outlined;
+    if (entity.contains('ADDRESS') || entity.contains('LOCATION')) {
+      return Icons.location_on_outlined;
+    }
+    if (entity.contains('BANK') || entity.contains('CARD') || entity.contains('MONEY')) {
+      return Icons.account_balance_outlined;
+    }
+    if (entity.contains('ORGANIZATION')) return Icons.business_outlined;
+    if (entity.contains('PERSON')) return Icons.person_outline_rounded;
+    return Icons.privacy_tip_outlined;
+  }
+
+  String _friendlyEntity(String entity) => entity
+      .toLowerCase()
+      .split('_')
+      .map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
+}
+
+class _ImportTile extends StatelessWidget {
+  const _ImportTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.controller;
-    final policy = state.policy;
-    final query = _filter.text.trim().toLowerCase();
-    final visibleFindings = state.findings.where((finding) {
-      if (query.isEmpty) return true;
-      return finding.text.toLowerCase().contains(query) ||
-          finding.entityType.toLowerCase().contains(query);
-    }).toList(growable: false);
-    final categories = state.findings.map((item) => item.entityType).toSet().toList()..sort();
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('PrivacyGate')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFFF2F7FF) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: active ? PgColors.blue : PgColors.border),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Protect a document', style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Review every detected item before protected content leaves this device.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Chip(
-                  avatar: Icon(Icons.lock_outline, size: 16),
-                  label: Text('LOCAL'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Document setup', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: policy.profileKey,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Industry profile',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (final profile in profiles)
-                          DropdownMenuItem(value: profile.key, child: Text(profile.name)),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) policy.setProfileKey(value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: policy.scopeKey,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Protection scope',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (final scope in scopes)
-                          DropdownMenuItem(value: scope.key, child: Text(scope.name)),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) policy.setScopeKey(value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<ReplacementMode>(
-                      value: policy.replacementMode,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Protection mode',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (final mode in ReplacementMode.values)
-                          DropdownMenuItem(value: mode, child: Text(mode.label)),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) policy.setReplacementMode(value);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Expanded(child: Text('Detection confidence')),
-                        Text(policy.confidenceThreshold.toStringAsFixed(2)),
-                      ],
-                    ),
-                    Slider(
-                      min: 0.10,
-                      max: 0.95,
-                      divisions: 17,
-                      value: policy.confidenceThreshold,
-                      label: policy.confidenceThreshold.toStringAsFixed(2),
-                      onChanged: policy.setConfidenceThreshold,
-                    ),
-                    Text(
-                      'Lower values detect more possible sensitive data; higher values are stricter.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _text,
-                      minLines: 6,
-                      maxLines: 12,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Paste text',
-                        hintText: 'Paste an email, lease excerpt, offer, proposal or other business text.',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 142,
-                          child: DropdownButtonFormField<String>(
-                            value: policy.scanLanguage,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Scan language',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            items: [
-                              for (final language in documentLanguages)
-                                DropdownMenuItem(
-                                  value: language.code,
-                                  child: Text(language.label),
-                                ),
-                            ],
-                            onChanged: (value) {
-                              if (value != null) policy.setScanLanguage(value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: state.analyzing || _text.text.trim().isEmpty
-                                ? null
-                                : () => state.analyze(_text.text),
-                            icon: const Icon(Icons.search),
-                            label: Text(state.analyzing ? 'Scanning…' : 'Scan for sensitive data'),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          tooltip: 'Clear',
-                          onPressed: _text.text.isEmpty && state.findings.isEmpty ? null : _clear,
-                          icon: const Icon(Icons.clear),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Scan language selects the detector used for this text. It is independent from the app-interface language.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                Chip(label: Text('${state.findings.length} findings')),
-                Chip(label: Text('${categories.length} categories')),
-                const Chip(label: Text('1 text page')),
-                _verificationChip(state),
-              ],
-            ),
-            if (state.findings.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text('Detected items', style: Theme.of(context).textTheme.titleMedium),
-                          ),
-                          Text('${state.selectedCount}/${state.findings.length} protect'),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _filter,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.filter_alt_outlined),
-                          labelText: 'Filter findings',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          OutlinedButton(onPressed: state.selectAll, child: const Text('Protect all')),
-                          OutlinedButton(onPressed: state.keepAll, child: const Text('Keep all')),
-                          OutlinedButton(onPressed: state.invertSelection, child: const Text('Invert')),
-                          OutlinedButton.icon(
-                            onPressed: _showManualFindingDialog,
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Add missed item'),
-                          ),
-                        ],
-                      ),
-                      if (categories.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            for (final category in categories)
-                              FilterChip(
-                                label: Text(category),
-                                selected: state.findings
-                                    .where((item) => item.entityType == category)
-                                    .every((item) => state.selectedFindingIds.contains(item.findingId)),
-                                onSelected: (selected) =>
-                                    state.setCategorySelected(category, selected),
-                              ),
-                          ],
-                        ),
-                      ],
-                      const Divider(height: 24),
-                      for (final finding in visibleFindings)
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          value: state.selectedFindingIds.contains(finding.findingId),
-                          onChanged: (value) => state.setSelected(
-                            finding.findingId,
-                            value ?? false,
-                          ),
-                          title: Text(finding.text),
-                          subtitle: Text(
-                            '${finding.entityType} · ${(finding.score * 100).toStringAsFixed(0)}%',
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                      FilledButton.icon(
-                        onPressed: state.selectedCount == 0 || state.verificationRunning
-                            ? null
-                            : state.protectAndVerify,
-                        icon: const Icon(Icons.shield),
-                        label: Text(
-                          state.verificationRunning
-                              ? 'Verifying protected result…'
-                              : 'Protect selected (${state.selectedCount})',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            if (state.result != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Protected output', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      _verificationMessage(context, state),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: SelectableText(state.result!.protectedText),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: state.exportVerified ? _copyProtected : null,
-                            icon: const Icon(Icons.copy),
-                            label: const Text('Copy protected'),
-                          ),
-                          if (state.result!.replacementMode ==
-                              ReplacementMode.reversible.wireValue)
-                            OutlinedButton.icon(
-                              onPressed: state.result!.mappings.isEmpty ? null : state.restoreLocally,
-                              icon: const Icon(Icons.lock_open_outlined),
-                              label: const Text('Restore locally'),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            if (state.restoredText.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Restored locally', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      SelectableText(state.restoredText),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
+            PgIconBox(icon: icon),
+            const SizedBox(height: 9),
             Text(
-              'Development note: the workspace behavior follows the audited Desktop Protect flow, but detector parity is not complete until the production mobile detector passes the canonical Desktop corpus.',
-              style: Theme.of(context).textTheme.bodySmall,
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: PgColors.navy,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: PgColors.textSecondary,
+                fontSize: 11,
+                height: 1.2,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _verificationChip(ProtectController state) {
-    if (state.verificationRunning) {
-      return const Chip(label: Text('Second scan…'));
-    }
-    if (!state.verificationPerformed) {
-      return const Chip(label: Text('Second scan before export'));
-    }
-    if (state.verificationError != null || state.residualFindings.isNotEmpty) {
-      return const Chip(
-        avatar: Icon(Icons.warning_amber, size: 16),
-        label: Text('Export blocked'),
-      );
-    }
-    return const Chip(
-      avatar: Icon(Icons.verified_user_outlined, size: 16),
-      label: Text('Second scan passed'),
+class _ProfileTile extends StatelessWidget {
+  const _ProfileTile({
+    required this.profile,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final PrivacyProfile profile;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (profile.key) {
+      'property_management' => Icons.home_work_outlined,
+      'realtor_brokerage' => Icons.person_pin_circle_outlined,
+      'projects_renovations' => Icons.handyman_outlined,
+      _ => Icons.description_outlined,
+    };
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFF2F7FF) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: selected ? PgColors.blue : PgColors.border),
+        ),
+        child: Stack(
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                PgIconBox(icon: icon, size: 40),
+                const SizedBox(height: 8),
+                Text(
+                  profile.name.replaceAll(' — Recommended', ''),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: PgColors.navy,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? PgColors.blue : const Color(0xFFB4BDCE),
+                size: 20,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-  }
-
-  Widget _verificationMessage(BuildContext context, ProtectController state) {
-    if (state.verificationRunning) {
-      return const Text('Running the second local scan before export actions are enabled.');
-    }
-    if (state.verificationError != null) {
-      return Text(
-        'Second scan failed. Copy/export remains blocked.',
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
-      );
-    }
-    if (state.residualFindings.isNotEmpty) {
-      return Text(
-        'Second scan found ${state.residualFindings.length} residual sensitive item(s). Copy/export remains blocked.',
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
-      );
-    }
-    if (state.verificationPerformed) {
-      return const Text('Second local scan passed. Protected copy actions are enabled.');
-    }
-    return const Text('Second local scan has not run yet.');
   }
 }
