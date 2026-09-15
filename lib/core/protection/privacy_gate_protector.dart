@@ -1,6 +1,7 @@
 import '../domain/privacy_finding.dart';
 import '../domain/protection_result.dart';
 import '../domain/replacement_mapping.dart';
+import '../settings/privacy_gate_settings.dart';
 
 class PrivacyGateProtector {
   const PrivacyGateProtector();
@@ -8,7 +9,7 @@ class PrivacyGateProtector {
   ProtectionResult protect(
     String text,
     Iterable<PrivacyFinding> selected, {
-    String replacementMode = 'reversible',
+    ReplacementMode replacementMode = ReplacementMode.reversible,
   }) {
     final findings = selected.toList()..sort((a, b) => a.start.compareTo(b.start));
     _validateSpans(text, findings);
@@ -20,19 +21,14 @@ class PrivacyGateProtector {
 
     for (final finding in findings) {
       final replacement = switch (replacementMode) {
-        'redact' => '[REDACTED]',
-        'generic' => '[[${finding.entityType}]]',
-        'mask' => _maskValue(finding.text),
-        'reversible' => _reversibleToken(
+        ReplacementMode.redact => '[REDACTED]',
+        ReplacementMode.generic => '[[${finding.entityType}]]',
+        ReplacementMode.mask => _maskValue(finding.text),
+        ReplacementMode.reversible => _reversibleToken(
             finding,
             counters,
             tokenByValue,
             mappings,
-          ),
-        _ => throw ArgumentError.value(
-            replacementMode,
-            'replacementMode',
-            'Unsupported PrivacyGate replacement mode',
           ),
       };
       replacements[finding.findingId] = replacement;
@@ -50,7 +46,7 @@ class PrivacyGateProtector {
     return ProtectionResult(
       protectedText: protectedText,
       mappings: mappings.values.toList(growable: false),
-      replacementMode: replacementMode,
+      replacementMode: replacementMode.wireValue,
     );
   }
 
