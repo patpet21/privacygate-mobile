@@ -20,14 +20,23 @@ void main() {
     expect(find.text('Import from'), findsOneWidget);
     expect(find.text('Paste text'), findsOneWidget);
 
-    final protectList = find.byType(ListView);
-    await tester.drag(protectList, const Offset(0, -700));
+    final protectScroll = find.byType(Scrollable).first;
+
+    await tester.scrollUntilVisible(
+      find.text('Protection profile'),
+      350,
+      scrollable: protectScroll,
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Protection profile'), findsOneWidget);
     expect(find.byKey(const ValueKey('scan-options')), findsOneWidget);
 
-    await tester.drag(protectList, const Offset(0, -900));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('continue-scan')),
+      350,
+      scrollable: protectScroll,
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('continue-scan')), findsOneWidget);
