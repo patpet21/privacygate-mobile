@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/detection/desktop_rule_detector.dart';
+import '../core/detection/detection_engine.dart';
 import '../core/protection/privacy_gate_protector.dart';
 import '../core/protection/protection_policy.dart';
 import '../core/settings/privacy_gate_settings.dart';
@@ -32,7 +33,7 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
     _settings = PrivacyGateSettings();
     _protectionPolicy = ProtectionPolicy();
     _protectController = ProtectController(
-      detector: const DesktopRuleDetector(),
+      detector: const DocumentDetectionEngine(DesktopRuleDetector()),
       protector: const PrivacyGateProtector(),
       policy: _protectionPolicy,
     );

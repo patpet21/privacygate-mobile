@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:privacygate/core/detection/bootstrap_pattern_detector.dart';
+import 'package:privacygate/core/detection/detection_engine.dart';
 import 'package:privacygate/core/protection/privacy_gate_protector.dart';
 import 'package:privacygate/core/protection/protection_policy.dart';
 import 'package:privacygate/features/protect/protect_controller.dart';
@@ -8,7 +9,7 @@ void main() {
   test('changing scan language invalidates findings and requires a fresh scan', () async {
     final policy = ProtectionPolicy();
     final controller = ProtectController(
-      detector: const BootstrapPatternDetector(),
+      detector: const DocumentDetectionEngine(BootstrapPatternDetector()),
       protector: const PrivacyGateProtector(),
       policy: policy,
     );
@@ -27,7 +28,7 @@ void main() {
   test('protected text is exportable only after the second scan passes', () async {
     final policy = ProtectionPolicy();
     final controller = ProtectController(
-      detector: const BootstrapPatternDetector(),
+      detector: const DocumentDetectionEngine(BootstrapPatternDetector()),
       protector: const PrivacyGateProtector(),
       policy: policy,
     );

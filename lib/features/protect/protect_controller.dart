@@ -12,7 +12,7 @@ import '../../core/protection/protection_policy.dart';
 
 class ProtectController extends ChangeNotifier {
   ProtectController({
-    required DetectionEngine detector,
+    required DocumentDetectionEngine detector,
     required PrivacyGateProtector protector,
     required ProtectionPolicy policy,
   })  : _detector = detector,
@@ -21,7 +21,7 @@ class ProtectController extends ChangeNotifier {
     _policy.addListener(_policyChanged);
   }
 
-  final DetectionEngine _detector;
+  final DocumentDetectionEngine _detector;
   final PrivacyGateProtector _protector;
   final ProtectionPolicy _policy;
 
@@ -59,11 +59,15 @@ class ProtectController extends ChangeNotifier {
       return;
     }
 
+    final sourceDocument = AnalysisDocument(
+      sourceKind: 'text',
+      pages: [PageContent(pageNumber: 1, text: text)],
+    );
     final revision = _policyRevision;
     analyzing = true;
     notifyListeners();
     try {
-      final detected = await _detector.analyze(_requestFor(text));
+      final detected = await _detector.analyze(_requestFor(sourceDocument));
       if (revision != _policyRevision) return;
       findings = List.unmodifiable(detected);
       selectedFindingIds = detected.map((item) => item.findingId).toSet();
@@ -187,7 +191,11 @@ class ProtectController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final residual = await _detector.analyze(_requestFor(protected.protectedText));
+      final protectedDocument = AnalysisDocument(
+        sourceKind: 'protected',
+        pages: protected.protectedPages,
+      );
+      final residual = await _detector.analyze(_requestFor(protectedDocument));
       if (revision != _policyRevision) return;
       residualFindings = List.unmodifiable(residual);
       verificationPerformed = true;
@@ -226,8 +234,9 @@ class ProtectController extends ChangeNotifier {
     notifyListeners();
   }
 
-  DetectionRequest _requestFor(String text) => DetectionRequest(
-        text: text,
+  DocumentDetectionRequest _requestFor(AnalysisDocument document) =>
+      DocumentDetectionRequest(
+        document: document,
         profileKey: _policy.profileKey,
         scopeKey: _policy.scopeKey,
         scanLanguage: _policy.scanLanguage,
