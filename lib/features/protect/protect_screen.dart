@@ -53,7 +53,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
             minLines: 8,
             maxLines: 14,
             decoration: const InputDecoration(
-              hintText: 'Paste an email, lease excerpt, offer, proposal, or other text.',
+              hintText:
+                  'Paste an email, lease excerpt, offer, proposal, or other text.',
               border: OutlineInputBorder(),
             ),
           ),
@@ -107,7 +108,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
                   const SizedBox(height: 6),
                   const Text(
                     'These apply to this document only. Scan language is separate from the app-interface language.',
-                    style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+                    style:
+                        TextStyle(color: PgColors.textSecondary, height: 1.35),
                   ),
                   const SizedBox(height: 18),
                   DropdownButtonFormField<String>(
@@ -119,7 +121,10 @@ class _ProtectScreenState extends State<ProtectScreen> {
                     ),
                     items: [
                       for (final scope in scopes)
-                        DropdownMenuItem(value: scope.key, child: Text(scope.name)),
+                        DropdownMenuItem(
+                          value: scope.key,
+                          child: Text(scope.name),
+                        ),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
@@ -210,7 +215,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
 
   void _notReady(String label) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label is planned for a later mobile integration pass.')),
+      SnackBar(
+        content: Text('$label is planned for a later mobile integration pass.'),
+      ),
     );
   }
 
@@ -229,7 +236,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
         const PgHeader(),
         const PgTitle(
           title: 'Protect data',
-          subtitle: 'Import your files, messages, or content to scan and protect.',
+          subtitle:
+              'Import your files, messages, or content to scan and protect.',
         ),
         PgCard(
           child: Column(
@@ -243,7 +251,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
-                childAspectRatio: 1.23,
+                childAspectRatio: 0.78,
                 children: [
                   _ImportTile(
                     icon: Icons.content_paste_outlined,
@@ -353,7 +361,10 @@ class _ProtectScreenState extends State<ProtectScreen> {
                     SizedBox(height: 3),
                     Text(
                       'This build protects text locally. Desktop pairing and encrypted Vault persistence come next.',
-                      style: TextStyle(color: PgColors.textSecondary, height: 1.35),
+                      style: TextStyle(
+                        color: PgColors.textSecondary,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
@@ -405,7 +416,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
           height: 54,
           child: FilledButton.icon(
             key: const ValueKey('continue-scan'),
-            onPressed: _text.text.trim().isEmpty || state.analyzing ? null : _scan,
+            onPressed:
+                _text.text.trim().isEmpty || state.analyzing ? null : _scan,
             icon: state.analyzing
                 ? const SizedBox(
                     width: 18,
@@ -413,7 +425,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.arrow_forward_rounded),
-            label: Text(state.analyzing ? 'Scanning locally…' : 'Continue to scan'),
+            label: Text(
+              state.analyzing ? 'Scanning locally…' : 'Continue to scan',
+            ),
           ),
         ),
       ],
@@ -424,7 +438,11 @@ class _ProtectScreenState extends State<ProtectScreen> {
     final state = widget.controller;
     final categories = <String, int>{};
     for (final finding in state.findings) {
-      categories.update(finding.entityType, (count) => count + 1, ifAbsent: () => 1);
+      categories.update(
+        finding.entityType,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
     }
 
     return PgPage(
@@ -480,7 +498,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
                     for (final entry in categories.entries)
                       Chip(
                         avatar: Icon(_entityIcon(entry.key), size: 18),
-                        label: Text('${_friendlyEntity(entry.key)} ${entry.value}'),
+                        label: Text(
+                          '${_friendlyEntity(entry.key)} ${entry.value}',
+                        ),
                       ),
                   ],
                 ),
@@ -518,9 +538,18 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  OutlinedButton(onPressed: state.selectAll, child: const Text('Protect all')),
-                  OutlinedButton(onPressed: state.keepAll, child: const Text('Keep all')),
-                  OutlinedButton(onPressed: state.invertSelection, child: const Text('Invert')),
+                  OutlinedButton(
+                    onPressed: state.selectAll,
+                    child: const Text('Protect all'),
+                  ),
+                  OutlinedButton(
+                    onPressed: state.keepAll,
+                    child: const Text('Keep all'),
+                  ),
+                  OutlinedButton(
+                    onPressed: state.invertSelection,
+                    child: const Text('Invert'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: _showManualFindingDialog,
                     icon: const Icon(Icons.add_rounded),
@@ -533,7 +562,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 const PgEmptyState(
                   icon: Icons.verified_user_outlined,
                   title: 'No sensitive items found',
-                  body: 'You can go back, change scan options, or add a missed item manually after rescanning.',
+                  body:
+                      'You can go back, change scan options, or add a missed item manually after rescanning.',
                 )
               else
                 for (final finding in state.findings)
@@ -555,8 +585,10 @@ class _ProtectScreenState extends State<ProtectScreen> {
                           ),
                         ),
                         subtitle: Text(_friendlyEntity(finding.entityType)),
-                        value: state.selectedFindingIds.contains(finding.findingId),
-                        onChanged: (value) => state.setSelected(finding.findingId, value),
+                        value: state.selectedFindingIds
+                            .contains(finding.findingId),
+                        onChanged: (value) =>
+                            state.setSelected(finding.findingId, value),
                       ),
                       const Divider(height: 1),
                     ],
@@ -576,7 +608,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
                     ? 'Protect selected items, then PrivacyGate performs a second local scan before copy/restore actions are enabled.'
                     : _verificationMessage(state),
                 style: TextStyle(
-                  color: state.verificationError != null || state.residualFindings.isNotEmpty
+                  color: state.verificationError != null ||
+                          state.residualFindings.isNotEmpty
                       ? Theme.of(context).colorScheme.error
                       : PgColors.textSecondary,
                   height: 1.35,
@@ -604,9 +637,12 @@ class _ProtectScreenState extends State<ProtectScreen> {
                       icon: const Icon(Icons.copy_rounded),
                       label: const Text('Copy protected'),
                     ),
-                    if (state.result!.replacementMode == ReplacementMode.reversible.wireValue)
+                    if (state.result!.replacementMode ==
+                        ReplacementMode.reversible.wireValue)
                       OutlinedButton.icon(
-                        onPressed: state.result!.mappings.isEmpty ? null : state.restoreLocally,
+                        onPressed: state.result!.mappings.isEmpty
+                            ? null
+                            : state.restoreLocally,
                         icon: const Icon(Icons.lock_open_outlined),
                         label: const Text('Restore locally'),
                       ),
@@ -653,7 +689,11 @@ class _ProtectScreenState extends State<ProtectScreen> {
         const Text(
           'Vault save is intentionally not shown as completed: encrypted Mobile Vault persistence and Desktop pairing are not implemented yet.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: PgColors.textSecondary, fontSize: 12, height: 1.35),
+          style: TextStyle(
+            color: PgColors.textSecondary,
+            fontSize: 12,
+            height: 1.35,
+          ),
         ),
       ],
     );
@@ -702,7 +742,10 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 ),
                 items: [
                   if (entities.isEmpty)
-                    const DropdownMenuItem(value: 'CUSTOM', child: Text('CUSTOM')),
+                    const DropdownMenuItem(
+                      value: 'CUSTOM',
+                      child: Text('CUSTOM'),
+                    ),
                   for (final entity in entities)
                     DropdownMenuItem(value: entity, child: Text(entity)),
                 ],
@@ -719,7 +762,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
             ),
             FilledButton(
               onPressed: () {
-                widget.controller.addManualFinding(valueController.text, entityType);
+                widget.controller
+                    .addManualFinding(valueController.text, entityType);
                 Navigator.of(dialogContext).pop();
               },
               child: const Text('Add'),
@@ -751,7 +795,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
     if (entity.contains('ADDRESS') || entity.contains('LOCATION')) {
       return Icons.location_on_outlined;
     }
-    if (entity.contains('BANK') || entity.contains('CARD') || entity.contains('MONEY')) {
+    if (entity.contains('BANK') ||
+        entity.contains('CARD') ||
+        entity.contains('MONEY')) {
       return Icons.account_balance_outlined;
     }
     if (entity.contains('ORGANIZATION')) return Icons.business_outlined;
@@ -762,7 +808,11 @@ class _ProtectScreenState extends State<ProtectScreen> {
   String _friendlyEntity(String entity) => entity
       .toLowerCase()
       .split('_')
-      .map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1)}',
+      )
       .join(' ');
 }
 
