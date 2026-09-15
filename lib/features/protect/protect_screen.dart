@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/mobile_design.dart';
+import '../../app/workspace_header.dart';
 import '../../core/profiles/document_languages.dart';
 import '../../core/profiles/privacy_profiles.dart';
 import '../../core/protection/protection_policy.dart';
@@ -47,7 +48,6 @@ class _ProtectScreenState extends State<ProtectScreen> {
 
   Future<void> _showPasteDialog() async {
     var draftValue = _text.text;
-
     final value = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -81,7 +81,6 @@ class _ProtectScreenState extends State<ProtectScreen> {
     );
 
     if (!mounted || value == null) return;
-
     setState(() => _reviewing = false);
     _text.text = value;
     widget.controller.clear();
@@ -95,154 +94,155 @@ class _ProtectScreenState extends State<ProtectScreen> {
       builder: (sheetContext) {
         final policy = widget.controller.policy;
         return StatefulBuilder(
-          builder: (context, setSheetState) => Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              0,
-              20,
-              24 + MediaQuery.viewInsetsOf(context).bottom,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Scan settings',
-                    style: TextStyle(
-                      color: PgColors.navy,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'These settings apply to this document only. Everything is processed locally.',
-                    style: TextStyle(
-                      color: PgColors.textSecondary,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('profile-${policy.profileKey}'),
-                    initialValue: policy.profileKey,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Protection profile',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final profile in profiles)
-                        DropdownMenuItem(
-                          value: profile.key,
-                          child: Text(
-                            profile.name.replaceAll(' — Recommended', ''),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      policy.setProfileKey(value);
-                      setSheetState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('scope-${policy.scopeKey}'),
-                    initialValue: policy.scopeKey,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Protection level',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final scope in scopes)
-                        DropdownMenuItem(
-                          value: scope.key,
-                          child: Text(scope.name),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      policy.setScopeKey(value);
-                      setSheetState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<ReplacementMode>(
-                    key: ValueKey('mode-${policy.replacementMode.name}'),
-                    initialValue: policy.replacementMode,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Protection mode',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final mode in ReplacementMode.values)
-                        DropdownMenuItem(
-                          value: mode,
-                          child: Text(
-                            mode.label,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      policy.setReplacementMode(value);
-                      setSheetState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('language-${policy.scanLanguage}'),
-                    initialValue: policy.scanLanguage,
-                    decoration: const InputDecoration(
-                      labelText: 'Scan language',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final language in documentLanguages)
-                        DropdownMenuItem(
-                          value: language.code,
-                          child: Text(language.label),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      policy.setScanLanguage(value);
-                      setSheetState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Detection confidence',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
+          builder: (context, setSheetState) => SafeArea(
+            top: false,
+            child: FractionallySizedBox(
+              heightFactor: 0.86,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  0,
+                  20,
+                  24 + MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Scan settings',
+                      style: TextStyle(
+                        color: PgColors.navy,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
-                      Text(policy.confidenceThreshold.toStringAsFixed(2)),
-                    ],
-                  ),
-                  Slider(
-                    min: 0.10,
-                    max: 0.95,
-                    divisions: 17,
-                    value: policy.confidenceThreshold,
-                    onChanged: (value) {
-                      policy.setConfidenceThreshold(value);
-                      setSheetState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  FilledButton(
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                    child: const Text('Done'),
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'These settings apply to this document only. Everything is processed locally.',
+                      style: TextStyle(
+                        color: PgColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('profile-${policy.profileKey}'),
+                      initialValue: policy.profileKey,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Protection profile',
+                      ),
+                      items: [
+                        for (final profile in profiles)
+                          DropdownMenuItem(
+                            value: profile.key,
+                            child: Text(
+                              profile.name.replaceAll(' — Recommended', ''),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        policy.setProfileKey(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('scope-${policy.scopeKey}'),
+                      initialValue: policy.scopeKey,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Protection level',
+                      ),
+                      items: [
+                        for (final scope in scopes)
+                          DropdownMenuItem(
+                            value: scope.key,
+                            child: Text(scope.name),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        policy.setScopeKey(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<ReplacementMode>(
+                      key: ValueKey('mode-${policy.replacementMode.name}'),
+                      initialValue: policy.replacementMode,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Protection mode',
+                      ),
+                      items: [
+                        for (final mode in ReplacementMode.values)
+                          DropdownMenuItem(
+                            value: mode,
+                            child: Text(
+                              mode.label,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        policy.setReplacementMode(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('language-${policy.scanLanguage}'),
+                      initialValue: policy.scanLanguage,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Scan language',
+                      ),
+                      items: [
+                        for (final language in documentLanguages)
+                          DropdownMenuItem(
+                            value: language.code,
+                            child: Text(language.label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        policy.setScanLanguage(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Detection confidence',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Text(policy.confidenceThreshold.toStringAsFixed(2)),
+                      ],
+                    ),
+                    Slider(
+                      min: 0.10,
+                      max: 0.95,
+                      divisions: 17,
+                      value: policy.confidenceThreshold,
+                      onChanged: (value) {
+                        policy.setConfidenceThreshold(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Done'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -254,171 +254,69 @@ class _ProtectScreenState extends State<ProtectScreen> {
   Future<void> _showImportSourceSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Import source',
-                style: TextStyle(
-                  color: PgColors.navy,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Choose where the document will come from. Mobile integrations that are not ready yet stay clearly marked.',
-                style: TextStyle(
-                  color: PgColors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 14),
-              _ImportSourceRow(
-                icon: Icons.upload_file_outlined,
-                title: 'Upload local',
-                subtitle: 'PDF, DOCX, PPTX, XLSX, PNG, JPG, TXT and CSV',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _notReady('Local file import');
-                },
-              ),
-              _ImportSourceRow(
-                icon: Icons.photo_camera_outlined,
-                title: 'Scan with camera',
-                subtitle: 'Printed documents and photos',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _notReady('Camera scan');
-                },
-              ),
-              _ImportSourceRow(
-                icon: Icons.mail_outline_rounded,
-                title: 'Gmail',
-                subtitle: 'Choose an email to protect locally',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _notReady('Gmail import');
-                },
-              ),
-              _ImportSourceRow(
-                icon: Icons.cloud_outlined,
-                title: 'Google Drive',
-                subtitle: 'Import a file from Drive',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _notReady('Google Drive import');
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showHowItWorks() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => const SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(22, 0, 22, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'How Protect works',
-                style: TextStyle(
-                  color: PgColors.navy,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 14),
-              _HowItWorksRow(
-                number: '1',
-                title: 'Source',
-                body: 'Paste text or choose the document source.',
-              ),
-              _HowItWorksRow(
-                number: '2',
-                title: 'Scan',
-                body: 'PrivacyGate detects sensitive data locally.',
-              ),
-              _HowItWorksRow(
-                number: '3',
-                title: 'Review',
-                body: 'Choose exactly which findings should be protected.',
-              ),
-              _HowItWorksRow(
-                number: '4',
-                title: 'Safe copy',
-                body: 'Create and verify the protected copy before using it.',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showSafePreview() async {
-    final state = widget.controller;
-    final result = state.result;
-    if (result == null) return;
-
-    await showModalBottomSheet<void>(
-      context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         top: false,
-        child: SizedBox(
-          height: MediaQuery.sizeOf(sheetContext).height * 0.72,
-          child: Padding(
+        child: FractionallySizedBox(
+          heightFactor: 0.78,
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Safe preview',
+                  'Import source',
                   style: TextStyle(
                     color: PgColors.navy,
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  _verificationMessage(state),
-                  style: const TextStyle(
+                const Text(
+                  'Choose where the document will come from. Mobile integrations that are not ready yet stay clearly marked.',
+                  style: TextStyle(
                     color: PgColors.textSecondary,
                     height: 1.35,
                   ),
                 ),
                 const SizedBox(height: 14),
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: PgColors.background,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: PgColors.border),
-                    ),
-                    child: SingleChildScrollView(
-                      child: SelectableText(result.protectedText),
-                    ),
-                  ),
+                _ImportSourceRow(
+                  icon: Icons.upload_file_outlined,
+                  title: 'Upload local',
+                  subtitle: 'PDF, DOCX, PPTX, XLSX, PNG, JPG, TXT and CSV',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _notReady('Local file import');
+                  },
+                ),
+                _ImportSourceRow(
+                  icon: Icons.photo_camera_outlined,
+                  title: 'Scan with camera',
+                  subtitle: 'Printed documents and photos',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _notReady('Camera scan');
+                  },
+                ),
+                _ImportSourceRow(
+                  icon: Icons.mail_outline_rounded,
+                  title: 'Gmail',
+                  subtitle: 'Choose an email to protect locally',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _notReady('Gmail import');
+                  },
+                ),
+                _ImportSourceRow(
+                  icon: Icons.cloud_outlined,
+                  title: 'Google Drive',
+                  subtitle: 'Import a file from Drive',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _notReady('Google Drive import');
+                  },
                 ),
               ],
             ),
@@ -430,7 +328,6 @@ class _ProtectScreenState extends State<ProtectScreen> {
 
   Future<void> _showFullDocumentView() async {
     if (_text.text.trim().isEmpty && widget.controller.result == null) return;
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -442,9 +339,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
           child: SafeArea(
             top: false,
             child: SizedBox(
-              height: MediaQuery.sizeOf(sheetContext).height * 0.78,
+              height: MediaQuery.sizeOf(sheetContext).height * 0.82,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -452,7 +349,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
                       'Full document view',
                       style: TextStyle(
                         color: PgColors.navy,
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -463,13 +360,16 @@ class _ProtectScreenState extends State<ProtectScreen> {
                         if (protectedText != null) const Tab(text: 'Protected'),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Expanded(
                       child: TabBarView(
                         children: [
-                          _DocumentTextViewer(text: _text.text),
+                          _DocumentViewer(text: _text.text),
                           if (protectedText != null)
-                            _DocumentTextViewer(text: protectedText),
+                            _DocumentViewer(
+                              text: protectedText,
+                              highlightPlaceholders: true,
+                            ),
                         ],
                       ),
                     ),
@@ -483,6 +383,53 @@ class _ProtectScreenState extends State<ProtectScreen> {
     );
   }
 
+  Future<void> _showSafePreview() async {
+    final result = widget.controller.result;
+    if (result == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.8,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Safe preview',
+                  style: TextStyle(
+                    color: PgColors.navy,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _verificationMessage(widget.controller),
+                  style: const TextStyle(
+                    color: PgColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _DocumentViewer(
+                    text: result.protectedText,
+                    highlightPlaceholders: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _scan() async {
     if (_text.text.trim().isEmpty || widget.controller.analyzing) return;
     await widget.controller.analyze(_text.text);
@@ -490,18 +437,16 @@ class _ProtectScreenState extends State<ProtectScreen> {
     setState(() => _reviewing = true);
   }
 
-  void _notReady(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label is not connected in this mobile build yet.'),
-      ),
-    );
-  }
-
   void _clearDocument() {
     _text.clear();
     widget.controller.clear();
     setState(() => _reviewing = false);
+  }
+
+  void _notReady(String label) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label is not connected in this mobile build yet.')),
+    );
   }
 
   @override
@@ -511,14 +456,18 @@ class _ProtectScreenState extends State<ProtectScreen> {
 
   Widget _buildSource(BuildContext context) {
     final state = widget.controller;
-    final policy = state.policy;
     final hasSource = _text.text.trim().isNotEmpty;
 
     return PgPage(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
-        _ProtectAppHeader(onMenuTap: () => _notReady('Navigation menu')),
-        const SizedBox(height: 22),
+        PgWorkspaceHeader(
+          primaryStatus: 'LOCAL PROCESSING',
+          secondaryStatus: state.exportVerified ? 'PROTECTED' : 'READY',
+          secondaryPositive: state.exportVerified,
+          onMenuTap: () => _notReady('Navigation menu'),
+        ),
+        const SizedBox(height: 18),
         const PgTitle(
           title: 'Protect',
           subtitle:
@@ -526,7 +475,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
         ),
         _WorkspaceCard(
           activeStep: 1,
-          onHowItWorks: _showHowItWorks,
+          onFullView: hasSource ? _showFullDocumentView : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -537,124 +486,35 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 onSafePreview: state.result == null ? null : _showSafePreview,
               ),
               const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final narrow = constraints.maxWidth < 390;
-                  final language = _LanguageControl(policy: policy);
-                  final settings = OutlinedButton.icon(
-                    key: const ValueKey('scan-options'),
-                    onPressed: _showScanOptions,
-                    icon: const Icon(Icons.shield_outlined, size: 19),
-                    label: const Text('Scan settings'),
-                  );
-                  final clear = OutlinedButton.icon(
-                    onPressed: hasSource ? _clearDocument : null,
-                    icon: const Icon(Icons.cancel_outlined, size: 19),
-                    label: const Text('Clear'),
-                  );
-
-                  if (narrow) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        language,
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(child: settings),
-                            const SizedBox(width: 8),
-                            Expanded(child: clear),
-                          ],
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(flex: 3, child: language),
-                      const SizedBox(width: 8),
-                      Expanded(flex: 2, child: settings),
-                      const SizedBox(width: 8),
-                      Expanded(child: clear),
-                    ],
-                  );
-                },
+              _WorkspaceControls(
+                policy: state.policy,
+                hasSource: hasSource,
+                analyzing: state.analyzing,
+                onScanSettings: _showScanOptions,
+                onClear: _clearDocument,
+                onScan: _scan,
+                onSafePreview: state.result == null ? null : _showSafePreview,
               ),
               const SizedBox(height: 10),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final scanButton = FilledButton.icon(
-                    key: const ValueKey('continue-scan'),
-                    onPressed: !hasSource || state.analyzing ? null : _scan,
-                    icon: state.analyzing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.shield_outlined),
-                    label: Text(
-                      state.analyzing ? 'Scanning locally…' : 'Scan locally',
-                    ),
-                  );
-                  final previewButton = OutlinedButton(
-                    onPressed: state.result == null ? null : _showSafePreview,
-                    child: const Text('Safe preview'),
-                  );
-
-                  if (constraints.maxWidth < 360) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        scanButton,
-                        const SizedBox(height: 8),
-                        previewButton,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(flex: 3, child: scanButton),
-                      const SizedBox(width: 8),
-                      Expanded(flex: 2, child: previewButton),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: hasSource ? _showFullDocumentView : null,
-                      icon: const Icon(Icons.view_column_outlined, size: 19),
-                      label: const Text('Full document view'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: _InfoPill(
-                      icon: Icons.palette_outlined,
-                      label: 'Protected values use clear placeholders',
-                    ),
-                  ),
-                ],
-              ),
+              const _HighFidelityInfo(),
             ],
           ),
         ),
         const SizedBox(height: 14),
-        _OriginalDocumentCard(
+        _DocumentPreviewCard(
+          title: 'Original document',
+          badge: 'Local source',
           text: _text.text,
+          emptyIcon: Icons.description_outlined,
+          emptyTitle: 'No document loaded',
+          emptyBody:
+              'Choose an email from Gmail, upload a local file, or switch to Paste text.',
           onPasteText: _showPasteDialog,
           onChooseEmail: () => _notReady('Gmail import'),
           onUploadLocal: () => _notReady('Local file import'),
-          onClear: hasSource ? _clearDocument : null,
         ),
         const SizedBox(height: 14),
-        _ProtectedDocumentCard(
+        _ProtectedPreviewCard(
           state: state,
           onCopy: _copyProtected,
           onSafePreview: _showSafePreview,
@@ -669,51 +529,34 @@ class _ProtectScreenState extends State<ProtectScreen> {
 
   Widget _buildReview(BuildContext context) {
     final state = widget.controller;
-    final activeStep = state.result == null ? 3 : 4;
-    final categories = <String, int>{};
-    for (final finding in state.findings) {
-      categories.update(
-        finding.entityType,
-        (count) => count + 1,
-        ifAbsent: () => 1,
-      );
-    }
+    final protected = state.result != null;
 
     return PgPage(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
-        _ProtectAppHeader(onMenuTap: () => _notReady('Navigation menu')),
-        const SizedBox(height: 22),
+        PgWorkspaceHeader(
+          primaryStatus: 'LOCAL PROCESSING',
+          secondaryStatus: protected && state.exportVerified ? 'PROTECTED' : 'REVIEW',
+          secondaryPositive: protected && state.exportVerified,
+          onMenuTap: () => _notReady('Navigation menu'),
+        ),
+        const SizedBox(height: 18),
         const PgTitle(
           title: 'Protect',
           subtitle:
               'Review sensitive data locally, then create a verified safe copy.',
         ),
         _WorkspaceCard(
-          activeStep: activeStep,
-          onHowItWorks: _showHowItWorks,
+          activeStep: protected ? 4 : 3,
+          onFullView: _showFullDocumentView,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => setState(() => _reviewing = false),
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Back to source'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('scan-options'),
-                      onPressed: _showScanOptions,
-                      icon: const Icon(Icons.tune_rounded),
-                      label: const Text('Scan settings'),
-                    ),
-                  ),
-                ],
+              _ReviewToolbar(
+                onBack: () => setState(() => _reviewing = false),
+                onScanSettings: _showScanOptions,
+                onFullView: _showFullDocumentView,
+                onSafePreview: protected ? _showSafePreview : null,
               ),
               const SizedBox(height: 10),
               _DocumentSummaryBar(
@@ -725,137 +568,23 @@ class _ProtectScreenState extends State<ProtectScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        _OriginalDocumentCard(
+        _DocumentPreviewCard(
+          title: 'Original document',
+          badge: 'Local source',
           text: state.originalText,
-          compact: true,
+          emptyIcon: Icons.description_outlined,
+          emptyTitle: 'No document loaded',
+          emptyBody: 'Return to Source and load content first.',
           onPasteText: _showPasteDialog,
           onChooseEmail: () => _notReady('Gmail import'),
           onUploadLocal: () => _notReady('Local file import'),
-          onClear: _clearDocument,
         ),
         const SizedBox(height: 14),
-        PgCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Detected items (${state.findings.length})',
-                      style: const TextStyle(
-                        color: PgColors.navy,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${state.selectedCount} protect',
-                    style: const TextStyle(
-                      color: PgColors.blue,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Switch off an item to keep it unchanged.',
-                style: TextStyle(color: PgColors.textSecondary),
-              ),
-              if (categories.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final entry in categories.entries)
-                      Chip(
-                        visualDensity: VisualDensity.compact,
-                        avatar: Icon(_entityIcon(entry.key), size: 17),
-                        label: Text(
-                          '${_friendlyEntity(entry.key)} ${entry.value}',
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton(
-                    onPressed: state.selectAll,
-                    child: const Text('Protect all'),
-                  ),
-                  OutlinedButton(
-                    onPressed: state.keepAll,
-                    child: const Text('Keep all'),
-                  ),
-                  OutlinedButton(
-                    onPressed: state.invertSelection,
-                    child: const Text('Invert'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _showManualFindingDialog,
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Add missed item'),
-                  ),
-                ],
-              ),
-              const Divider(height: 26),
-              if (state.findings.isEmpty)
-                const PgEmptyState(
-                  icon: Icons.verified_user_outlined,
-                  title: 'No sensitive items found',
-                  body:
-                      'Go back and change scan settings, or add a missed item manually.',
-                )
-              else
-                for (final finding in state.findings)
-                  Column(
-                    children: [
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        secondary: PgIconBox(
-                          icon: _entityIcon(finding.entityType),
-                          size: 38,
-                        ),
-                        title: Text(
-                          finding.text,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: PgColors.navy,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        subtitle: Text(_friendlyEntity(finding.entityType)),
-                        value: state.selectedFindingIds
-                            .contains(finding.findingId),
-                        onChanged: (value) =>
-                            state.setSelected(finding.findingId, value),
-                      ),
-                      const Divider(height: 1),
-                    ],
-                  ),
-            ],
+        if (!protected) ...[
+          _ReviewFindingsCard(
+            state: state,
+            onAddMissed: _showManualFindingDialog,
           ),
-        ),
-        const SizedBox(height: 14),
-        _ProtectedDocumentCard(
-          state: state,
-          onCopy: _copyProtected,
-          onSafePreview: _showSafePreview,
-          onRestore: state.hasLocalRestoreMapping ? state.restoreLocally : null,
-          onOpenRestore: state.hasLocalRestoreMapping
-              ? () => widget.onOpenRestore(context)
-              : null,
-        ),
-        if (state.result == null) ...[
           const SizedBox(height: 14),
           SizedBox(
             height: 54,
@@ -878,17 +607,42 @@ class _ProtectScreenState extends State<ProtectScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 14),
         ],
-        const SizedBox(height: 8),
-        const Text(
-          'Encrypted Mobile Vault persistence and Desktop pairing are not connected yet.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: PgColors.textSecondary,
-            fontSize: 12,
-            height: 1.35,
-          ),
+        _ProtectedPreviewCard(
+          state: state,
+          onCopy: _copyProtected,
+          onSafePreview: _showSafePreview,
+          onRestore: state.hasLocalRestoreMapping ? state.restoreLocally : null,
+          onOpenRestore: state.hasLocalRestoreMapping
+              ? () => widget.onOpenRestore(context)
+              : null,
         ),
+        if (protected) ...[
+          const SizedBox(height: 14),
+          PgCard(
+            padding: EdgeInsets.zero,
+            child: ExpansionTile(
+              title: Text(
+                'Review detections (${state.findings.length})',
+                style: const TextStyle(
+                  color: PgColors.navy,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              subtitle: Text('${state.selectedCount} protected'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: _ReviewFindingsBody(
+                    state: state,
+                    onAddMissed: _showManualFindingDialog,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -923,17 +677,13 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 onChanged: (value) => valueText = value,
                 decoration: const InputDecoration(
                   labelText: 'Value exactly as it appears',
-                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: entityType,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Category'),
                 items: [
                   if (entities.isEmpty)
                     const DropdownMenuItem(
@@ -980,189 +730,17 @@ class _ProtectScreenState extends State<ProtectScreen> {
     }
     return 'Second local scan has not run yet.';
   }
-
-  IconData _entityIcon(String entity) {
-    if (entity.contains('EMAIL')) return Icons.mail_outline_rounded;
-    if (entity.contains('PHONE')) return Icons.phone_outlined;
-    if (entity.contains('ADDRESS') || entity.contains('LOCATION')) {
-      return Icons.location_on_outlined;
-    }
-    if (entity.contains('BANK') ||
-        entity.contains('CARD') ||
-        entity.contains('MONEY')) {
-      return Icons.account_balance_outlined;
-    }
-    if (entity.contains('ORGANIZATION')) return Icons.business_outlined;
-    if (entity.contains('PERSON')) return Icons.person_outline_rounded;
-    return Icons.privacy_tip_outlined;
-  }
-
-  String _friendlyEntity(String entity) => entity
-      .toLowerCase()
-      .split('_')
-      .map(
-        (part) => part.isEmpty
-            ? part
-            : '${part[0].toUpperCase()}${part.substring(1)}',
-      )
-      .join(' ');
-}
-
-class _ProtectAppHeader extends StatelessWidget {
-  const _ProtectAppHeader({required this.onMenuTap});
-
-  final VoidCallback onMenuTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final identity = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              onPressed: onMenuTap,
-              icon: const Icon(Icons.menu_rounded, color: PgColors.navy),
-            ),
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: PgColors.blueSoft,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(
-                Icons.shield_outlined,
-                color: PgColors.blue,
-                size: 23,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'PrivacyGate',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: PgColors.navy,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Enterprise organization',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: PgColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 3),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 16,
-                        color: PgColors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-
-        const badges = Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _StatusPill(
-              label: 'LOCAL PROCESSING',
-              foreground: PgColors.green,
-              background: PgColors.greenSoft,
-            ),
-            _StatusPill(
-              label: 'READY',
-              foreground: PgColors.textSecondary,
-              background: Color(0xFFF0F2F6),
-            ),
-          ],
-        );
-
-        if (constraints.maxWidth < 390) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              identity,
-              const SizedBox(height: 8),
-              const Align(alignment: Alignment.centerRight, child: badges),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            Expanded(child: identity),
-            const SizedBox(width: 8),
-            badges,
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.foreground,
-    required this.background,
-  });
-
-  final String label;
-  final Color foreground;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: foreground.withAlpha(70)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
 }
 
 class _WorkspaceCard extends StatelessWidget {
   const _WorkspaceCard({
     required this.activeStep,
-    required this.onHowItWorks,
+    required this.onFullView,
     required this.child,
   });
 
   final int activeStep;
-  final VoidCallback onHowItWorks;
+  final VoidCallback? onFullView;
   final Widget child;
 
   @override
@@ -1172,26 +750,38 @@ class _WorkspaceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
             children: [
-              const Expanded(
-                child: Text(
-                  'Document workspace',
-                  style: TextStyle(
-                    color: PgColors.navy,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+              const Text(
+                'Document workspace',
+                style: TextStyle(
+                  color: PgColors.navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: onHowItWorks,
-                icon: const Icon(Icons.info_outline_rounded, size: 17),
-                label: const Text('How it works'),
-                style: OutlinedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onFullView,
+                    icon: const Icon(Icons.description_outlined, size: 17),
+                    label: const Text('Full document view'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                  ),
+                  const _InfoPill(
+                    icon: Icons.palette_outlined,
+                    label: 'Protected values are color coded',
+                  ),
+                ],
               ),
             ],
           ),
@@ -1213,37 +803,28 @@ class _WorkspaceStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const labels = ['Source', 'Scan', 'Review', 'Safe copy'];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F8FD),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFDCE6F6)),
-      ),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Row(
-          children: [
-            for (var index = 0; index < labels.length; index++) ...[
-              _StepLabel(
-                number: index + 1,
-                label: labels[index],
-                active: index + 1 <= activeStep,
-                current: index + 1 == activeStep,
-              ),
-              if (index != labels.length - 1)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 5),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: Color(0xFF98A2B6),
-                  ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < labels.length; index++) ...[
+            _StepLabel(
+              number: index + 1,
+              label: labels[index],
+              active: index + 1 <= activeStep,
+              current: index + 1 == activeStep,
+            ),
+            if (index != labels.length - 1)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Color(0xFF98A2B6),
                 ),
-            ],
+              ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1268,8 +849,8 @@ class _StepLabel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 22,
-          height: 22,
+          width: 26,
+          height: 26,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: active ? PgColors.blueSoft : Colors.white,
@@ -1282,7 +863,7 @@ class _StepLabel extends StatelessWidget {
             '$number',
             style: TextStyle(
               color: active ? PgColors.blue : PgColors.textSecondary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1292,7 +873,7 @@ class _StepLabel extends StatelessWidget {
           label,
           style: TextStyle(
             color: current ? PgColors.navy : PgColors.textSecondary,
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: current ? FontWeight.w800 : FontWeight.w600,
           ),
         ),
@@ -1437,31 +1018,175 @@ class _WorkspaceTab extends StatelessWidget {
   }
 }
 
-class _LanguageControl extends StatelessWidget {
-  const _LanguageControl({required this.policy});
+class _WorkspaceControls extends StatelessWidget {
+  const _WorkspaceControls({
+    required this.policy,
+    required this.hasSource,
+    required this.analyzing,
+    required this.onScanSettings,
+    required this.onClear,
+    required this.onScan,
+    required this.onSafePreview,
+  });
 
   final ProtectionPolicy policy;
+  final bool hasSource;
+  final bool analyzing;
+  final VoidCallback onScanSettings;
+  final VoidCallback onClear;
+  final VoidCallback onScan;
+  final VoidCallback? onSafePreview;
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      key: ValueKey('workspace-language-${policy.scanLanguage}'),
-      initialValue: policy.scanLanguage,
-      isDense: true,
-      decoration: const InputDecoration(
-        labelText: 'Language',
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      ),
-      items: [
-        for (final language in documentLanguages)
-          DropdownMenuItem(
-            value: language.code,
-            child: Text(language.label),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final language = SizedBox(
+          width: constraints.maxWidth < 430 ? constraints.maxWidth : 145,
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('workspace-language-${policy.scanLanguage}'),
+            initialValue: policy.scanLanguage,
+            isDense: true,
+            decoration: const InputDecoration(
+              labelText: 'Language',
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            ),
+            items: [
+              for (final language in documentLanguages)
+                DropdownMenuItem(
+                  value: language.code,
+                  child: Text(language.label),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null) policy.setScanLanguage(value);
+            },
           ),
-      ],
-      onChanged: (value) {
-        if (value != null) policy.setScanLanguage(value);
+        );
+
+        final buttons = <Widget>[
+          language,
+          OutlinedButton.icon(
+            key: const ValueKey('scan-options'),
+            onPressed: onScanSettings,
+            icon: const Icon(Icons.shield_outlined, size: 18),
+            label: const Text('Scan settings'),
+          ),
+          OutlinedButton.icon(
+            onPressed: hasSource ? onClear : null,
+            icon: const Icon(Icons.cancel_outlined, size: 18),
+            label: const Text('Clear'),
+          ),
+          FilledButton.icon(
+            key: const ValueKey('continue-scan'),
+            onPressed: !hasSource || analyzing ? null : onScan,
+            icon: analyzing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.shield_outlined, size: 18),
+            label: Text(analyzing ? 'Scanning…' : 'Scan + Protect'),
+          ),
+          OutlinedButton(
+            onPressed: onSafePreview,
+            child: const Text('Safe preview'),
+          ),
+        ];
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: buttons,
+        );
       },
+    );
+  }
+}
+
+class _ReviewToolbar extends StatelessWidget {
+  const _ReviewToolbar({
+    required this.onBack,
+    required this.onScanSettings,
+    required this.onFullView,
+    required this.onSafePreview,
+  });
+
+  final VoidCallback onBack;
+  final VoidCallback onScanSettings;
+  final VoidCallback onFullView;
+  final VoidCallback? onSafePreview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Back to source'),
+        ),
+        OutlinedButton.icon(
+          key: const ValueKey('scan-options'),
+          onPressed: onScanSettings,
+          icon: const Icon(Icons.tune_rounded),
+          label: const Text('Scan settings'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onFullView,
+          icon: const Icon(Icons.description_outlined),
+          label: const Text('Full view'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onSafePreview,
+          icon: const Icon(Icons.visibility_outlined),
+          label: const Text('Safe preview'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HighFidelityInfo extends StatelessWidget {
+  const _HighFidelityInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FD),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: PgColors.border),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.description_outlined, color: PgColors.blue, size: 18),
+          SizedBox(width: 7),
+          Text(
+            'High-fidelity preview',
+            style: TextStyle(
+              color: PgColors.navy,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Built-in preview remains available on mobile.',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: PgColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1475,29 +1200,24 @@ class _InfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      minHeight: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
         color: const Color(0xFFF3F7FF),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFB9D2FF)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 17, color: PgColors.blue),
+          Icon(icon, size: 16, color: PgColors.blue),
           const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: PgColors.blue,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: PgColors.blue,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -1506,22 +1226,28 @@ class _InfoPill extends StatelessWidget {
   }
 }
 
-class _OriginalDocumentCard extends StatelessWidget {
-  const _OriginalDocumentCard({
+class _DocumentPreviewCard extends StatelessWidget {
+  const _DocumentPreviewCard({
+    required this.title,
+    required this.badge,
     required this.text,
+    required this.emptyIcon,
+    required this.emptyTitle,
+    required this.emptyBody,
     required this.onPasteText,
     required this.onChooseEmail,
     required this.onUploadLocal,
-    required this.onClear,
-    this.compact = false,
   });
 
+  final String title;
+  final String badge;
   final String text;
+  final IconData emptyIcon;
+  final String emptyTitle;
+  final String emptyBody;
   final VoidCallback onPasteText;
   final VoidCallback onChooseEmail;
   final VoidCallback onUploadLocal;
-  final VoidCallback? onClear;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1533,112 +1259,62 @@ class _OriginalDocumentCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Original document',
-                  style: TextStyle(
+                  title,
+                  style: const TextStyle(
                     color: PgColors.navy,
-                    fontSize: 18,
+                    fontSize: 19,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              const _MiniPill(label: 'Local source'),
+              _MiniPill(label: badge),
             ],
           ),
           const SizedBox(height: 10),
+          if (hasText)
+            const _DocumentTabLabel()
+          else
+            const SizedBox.shrink(),
+          if (hasText) const SizedBox(height: 4),
           Container(
-            padding: EdgeInsets.all(compact ? 13 : 18),
+            constraints: BoxConstraints(minHeight: hasText ? 260 : 300),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFFCFEFF),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: const Color(0xFFBFDDEC)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: const Color(0xFFBDDCE8)),
             ),
             child: hasText
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          const PgIconBox(
-                            icon: Icons.description_outlined,
-                            size: 44,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Pasted text',
-                                  style: TextStyle(
-                                    color: PgColors.navy,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                Text(
-                                  '${text.trim().length} characters · kept on this device',
-                                  style: const TextStyle(
-                                    color: PgColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (onClear != null)
-                            IconButton(
-                              tooltip: 'Clear document',
-                              onPressed: onClear,
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        constraints: BoxConstraints(maxHeight: compact ? 130 : 190),
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: PgColors.border),
-                        ),
-                        child: SingleChildScrollView(
-                          child: SelectableText(
-                            text,
-                            style: const TextStyle(height: 1.4),
-                          ),
-                        ),
-                      ),
-                    ],
+                ? SizedBox(
+                    height: 260,
+                    child: _DocumentViewer(text: text),
                   )
                 : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const PgIconBox(
-                        icon: Icons.description_outlined,
-                        size: 54,
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'No document loaded',
+                      PgIconBox(icon: emptyIcon, size: 54),
+                      const SizedBox(height: 12),
+                      Text(
+                        emptyTitle,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: PgColors.navy,
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        'Choose an email from Gmail, upload a local file, or switch to Paste text.',
+                      const SizedBox(height: 6),
+                      Text(
+                        emptyBody,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: PgColors.textSecondary,
                           height: 1.35,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -1661,15 +1337,7 @@ class _OriginalDocumentCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Desktop Protect formats · mobile import coming next',
-                        style: TextStyle(
-                          color: PgColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       const Wrap(
                         spacing: 5,
                         runSpacing: 5,
@@ -1704,8 +1372,8 @@ class _OriginalDocumentCard extends StatelessWidget {
   }
 }
 
-class _ProtectedDocumentCard extends StatelessWidget {
-  const _ProtectedDocumentCard({
+class _ProtectedPreviewCard extends StatelessWidget {
+  const _ProtectedPreviewCard({
     required this.state,
     required this.onCopy,
     required this.onSafePreview,
@@ -1730,24 +1398,39 @@ class _ProtectedDocumentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Protected document',
-            style: TextStyle(
-              color: PgColors.navy,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Protected document',
+                  style: TextStyle(
+                    color: PgColors.navy,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (result != null)
+                _MiniPill(
+                  label: state.exportVerified ? 'Protected' : 'Verifying',
+                  positive: state.exportVerified,
+                ),
+            ],
           ),
           const SizedBox(height: 10),
+          if (result != null) const _DocumentTabLabel(),
+          if (result != null) const SizedBox(height: 4),
           Container(
-            padding: const EdgeInsets.all(18),
+            constraints: const BoxConstraints(minHeight: 280),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF9FEFE),
-              borderRadius: BorderRadius.circular(15),
+              color: const Color(0xFFFCFFFF),
+              borderRadius: BorderRadius.circular(13),
               border: Border.all(color: const Color(0xFFB8DFE3)),
             ),
             child: result == null
                 ? const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       PgIconBox(
                         icon: Icons.verified_user_outlined,
@@ -1755,19 +1438,19 @@ class _ProtectedDocumentCard extends StatelessWidget {
                         background: Color(0xFFEAF8F8),
                         size: 54,
                       ),
-                      SizedBox(height: 10),
+                      SizedBox(height: 12),
                       Text(
                         'Protected version will appear here',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: PgColors.navy,
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      SizedBox(height: 5),
+                      SizedBox(height: 6),
                       Text(
-                        'Your content will be scanned locally. Review the findings before PrivacyGate creates the safe copy.',
+                        'Scan locally, review detections, and PrivacyGate will create the safe copy here.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: PgColors.textSecondary,
@@ -1782,65 +1465,35 @@ class _ProtectedDocumentCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          PgIconBox(
-                            icon: error
+                          Icon(
+                            error
                                 ? Icons.warning_amber_rounded
                                 : Icons.verified_user_outlined,
-                            foreground: error
+                            color: error
                                 ? Theme.of(context).colorScheme.error
                                 : const Color(0xFF078A96),
-                            background: error
-                                ? const Color(0xFFFFF3F2)
-                                : const Color(0xFFEAF8F8),
-                            size: 44,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  state.verificationRunning
-                                      ? 'Verifying protected copy…'
-                                      : state.exportVerified
-                                          ? 'Protected locally'
-                                          : 'Protected copy needs attention',
-                                  style: const TextStyle(
-                                    color: PgColors.navy,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  _verificationMessageStatic(state),
-                                  style: TextStyle(
-                                    color: error
-                                        ? Theme.of(context).colorScheme.error
-                                        : PgColors.textSecondary,
-                                    fontSize: 12,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              _verificationMessageStatic(state),
+                              style: TextStyle(
+                                color: error
+                                    ? Theme.of(context).colorScheme.error
+                                    : PgColors.textSecondary,
+                                fontSize: 12,
+                                height: 1.35,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        constraints: const BoxConstraints(maxHeight: 190),
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: PgColors.border),
-                        ),
-                        child: SingleChildScrollView(
-                          child: SelectableText(
-                            result.protectedText,
-                            style: const TextStyle(height: 1.4),
-                          ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 280,
+                        child: _DocumentViewer(
+                          text: result.protectedText,
+                          highlightPlaceholders: true,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -1873,18 +1526,6 @@ class _ProtectedDocumentCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      if (state.restoredText.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Restored locally',
-                          style: TextStyle(
-                            color: PgColors.navy,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        SelectableText(state.restoredText),
-                      ],
                     ],
                   ),
           ),
@@ -1894,18 +1535,156 @@ class _ProtectedDocumentCard extends StatelessWidget {
   }
 }
 
-String _verificationMessageStatic(ProtectController state) {
-  if (state.verificationRunning) return 'Running the second local scan…';
-  if (state.verificationError != null) {
-    return 'Second scan failed. Copy/export remains blocked.';
+class _ReviewFindingsCard extends StatelessWidget {
+  const _ReviewFindingsCard({required this.state, required this.onAddMissed});
+
+  final ProtectController state;
+  final VoidCallback onAddMissed;
+
+  @override
+  Widget build(BuildContext context) {
+    return PgCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Review detections (${state.findings.length})',
+                  style: const TextStyle(
+                    color: PgColors.navy,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '${state.selectedCount} protect',
+                style: const TextStyle(
+                  color: PgColors.blue,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _ReviewFindingsBody(state: state, onAddMissed: onAddMissed),
+        ],
+      ),
+    );
   }
-  if (state.residualFindings.isNotEmpty) {
-    return 'Second scan found ${state.residualFindings.length} residual sensitive item(s). Copy/export remains blocked.';
+}
+
+class _ReviewFindingsBody extends StatelessWidget {
+  const _ReviewFindingsBody({required this.state, required this.onAddMissed});
+
+  final ProtectController state;
+  final VoidCallback onAddMissed;
+
+  IconData _entityIcon(String entity) {
+    if (entity.contains('EMAIL')) return Icons.mail_outline_rounded;
+    if (entity.contains('PHONE')) return Icons.phone_outlined;
+    if (entity.contains('ADDRESS') || entity.contains('LOCATION')) {
+      return Icons.location_on_outlined;
+    }
+    if (entity.contains('BANK') ||
+        entity.contains('CARD') ||
+        entity.contains('MONEY')) {
+      return Icons.account_balance_outlined;
+    }
+    if (entity.contains('ORGANIZATION')) return Icons.business_outlined;
+    if (entity.contains('PERSON')) return Icons.person_outline_rounded;
+    return Icons.privacy_tip_outlined;
   }
-  if (state.verificationPerformed) {
-    return 'Second local scan passed. Protected copy actions are enabled.';
+
+  String _friendlyEntity(String entity) => entity
+      .toLowerCase()
+      .split('_')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1)}',
+      )
+      .join(' ');
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.findings.isEmpty) {
+      return Column(
+        children: [
+          const PgEmptyState(
+            icon: Icons.verified_user_outlined,
+            title: 'No sensitive items found',
+            body: 'Change scan settings or add a missed item manually.',
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: onAddMissed,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add missed item'),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            OutlinedButton(
+              onPressed: state.selectAll,
+              child: const Text('Protect all'),
+            ),
+            OutlinedButton(
+              onPressed: state.keepAll,
+              child: const Text('Keep all'),
+            ),
+            OutlinedButton(
+              onPressed: state.invertSelection,
+              child: const Text('Invert'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onAddMissed,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add missed item'),
+            ),
+          ],
+        ),
+        const Divider(height: 24),
+        for (final finding in state.findings)
+          Column(
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                secondary: PgIconBox(
+                  icon: _entityIcon(finding.entityType),
+                  size: 38,
+                ),
+                title: Text(
+                  finding.text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: PgColors.navy,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: Text(_friendlyEntity(finding.entityType)),
+                value: state.selectedFindingIds.contains(finding.findingId),
+                onChanged: (value) =>
+                    state.setSelected(finding.findingId, value),
+              ),
+              const Divider(height: 1),
+            ],
+          ),
+      ],
+    );
   }
-  return 'Second local scan has not run yet.';
 }
 
 class _DocumentSummaryBar extends StatelessWidget {
@@ -1936,22 +1715,16 @@ class _DocumentSummaryBar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Pasted text',
-                  style: TextStyle(
-                    color: PgColors.navy,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
                 Text(
                   '$detections detections · ${profile.replaceAll(' — Recommended', '')}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: PgColors.textSecondary,
-                    fontSize: 11,
+                    color: PgColors.navy,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   replacementMode,
                   maxLines: 1,
@@ -1971,26 +1744,137 @@ class _DocumentSummaryBar extends StatelessWidget {
   }
 }
 
+class _DocumentTabLabel extends StatelessWidget {
+  const _DocumentTabLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF078A96), Color(0xFF0B63F6)],
+          ),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(10),
+            topRight: Radius.circular(10),
+          ),
+        ),
+        child: const Text(
+          'Document',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentViewer extends StatelessWidget {
+  const _DocumentViewer({
+    required this.text,
+    this.highlightPlaceholders = false,
+  });
+
+  final String text;
+  final bool highlightPlaceholders;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFB9CDE6)),
+      ),
+      child: SingleChildScrollView(
+        child: highlightPlaceholders
+            ? _PlaceholderText(text: text)
+            : SelectableText(
+                text,
+                style: const TextStyle(
+                  color: PgColors.navy,
+                  height: 1.45,
+                  fontSize: 14,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _PlaceholderText extends StatelessWidget {
+  const _PlaceholderText({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final pattern = RegExp(r'\[\[PG_[^\]]+\]\]');
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: match.group(0),
+          style: const TextStyle(
+            color: PgColors.navy,
+            backgroundColor: Color(0xFFFFEFA3),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < text.length) spans.add(TextSpan(text: text.substring(cursor)));
+
+    return SelectableText.rich(
+      TextSpan(
+        style: const TextStyle(
+          color: PgColors.navy,
+          height: 1.45,
+          fontSize: 14,
+        ),
+        children: spans,
+      ),
+    );
+  }
+}
+
 class _MiniPill extends StatelessWidget {
-  const _MiniPill({required this.label});
+  const _MiniPill({required this.label, this.positive = false});
 
   final String label;
+  final bool positive;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
+        color: positive ? PgColors.greenSoft : const Color(0xFFF5F7FA),
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: PgColors.border),
+        border: Border.all(
+          color: positive ? const Color(0xFFB7E8C7) : PgColors.border,
+        ),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: PgColors.textSecondary,
+        style: TextStyle(
+          color: positive ? PgColors.green : PgColors.textSecondary,
           fontSize: 11,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -2006,7 +1890,7 @@ class _FormatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -2056,87 +1940,16 @@ class _ImportSourceRow extends StatelessWidget {
   }
 }
 
-class _HowItWorksRow extends StatelessWidget {
-  const _HowItWorksRow({
-    required this.number,
-    required this.title,
-    required this.body,
-  });
-
-  final String number;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: PgColors.blueSoft,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: PgColors.blue,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: PgColors.navy,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  body,
-                  style: const TextStyle(
-                    color: PgColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+String _verificationMessageStatic(ProtectController state) {
+  if (state.verificationRunning) return 'Running the second local scan…';
+  if (state.verificationError != null) {
+    return 'Second scan failed. Copy/export remains blocked.';
   }
-}
-
-class _DocumentTextViewer extends StatelessWidget {
-  const _DocumentTextViewer({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: PgColors.background,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PgColors.border),
-      ),
-      child: SingleChildScrollView(
-        child: SelectableText(text),
-      ),
-    );
+  if (state.residualFindings.isNotEmpty) {
+    return 'Second scan found ${state.residualFindings.length} residual sensitive item(s). Copy/export remains blocked.';
   }
+  if (state.verificationPerformed) {
+    return 'Second local scan passed. Protected copy actions are enabled.';
+  }
+  return 'Second local scan has not run yet.';
 }
