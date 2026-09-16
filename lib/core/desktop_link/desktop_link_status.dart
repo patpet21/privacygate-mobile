@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 enum DesktopLinkStatus {
   unpaired,
   checking,
-  connected,
+  connectedLocal,
+  connectedRemote,
   offline,
 }
 
@@ -14,6 +15,10 @@ class DesktopLinkPresence {
       ValueNotifier<DesktopLinkStatus>(DesktopLinkStatus.unpaired);
 
   static DesktopLinkStatus get value => notifier.value;
+
+  static bool get connected =>
+      notifier.value == DesktopLinkStatus.connectedLocal ||
+      notifier.value == DesktopLinkStatus.connectedRemote;
 
   static void set(DesktopLinkStatus value) {
     if (notifier.value != value) {
