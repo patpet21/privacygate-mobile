@@ -177,6 +177,7 @@ class _DesktopPairingQrScannerScreenState
     extends State<_DesktopPairingQrScannerScreen> {
   final MobileScannerController _scannerController = MobileScannerController(
     formats: const [BarcodeFormat.qrCode],
+    autoZoom: true,
   );
   bool _handled = false;
 
@@ -213,6 +214,18 @@ class _DesktopPairingQrScannerScreenState
           controller: _scannerController,
           onDetect: _onDetect,
         ),
+        IgnorePointer(
+          child: Center(
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white, width: 3),
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+        ),
         SafeArea(
           child: Align(
             alignment: Alignment.bottomCenter,
@@ -224,7 +237,7 @@ class _DesktopPairingQrScannerScreenState
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'Point the camera at the temporary QR shown by PrivacyGate Desktop. '
+                'Keep the entire Desktop QR and its white border inside the frame. '
                 'After scanning, approve the request on the computer.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white),
