@@ -34,6 +34,9 @@ import UIKit
       case "vaultDirectoryPath":
         result(try vaultDirectory().path)
 
+      case "libraryDirectoryPath":
+        result(try libraryDirectory().path)
+
       case "encrypt":
         guard
           let arguments = call.arguments as? [String: Any],
@@ -118,15 +121,28 @@ import UIKit
   }
 
   private func vaultDirectory() throws -> URL {
+    let directory = try privacyGateDirectory()
+      .appendingPathComponent("Vault", isDirectory: true)
+    return try preparePrivateDirectory(directory)
+  }
+
+  private func libraryDirectory() throws -> URL {
+    let directory = try privacyGateDirectory()
+      .appendingPathComponent("Library", isDirectory: true)
+    return try preparePrivateDirectory(directory)
+  }
+
+  private func privacyGateDirectory() throws -> URL {
     guard let applicationSupport = FileManager.default.urls(
       for: .applicationSupportDirectory,
       in: .userDomainMask
     ).first else {
       throw VaultError.directoryUnavailable
     }
-    var directory = applicationSupport
-      .appendingPathComponent("PrivacyGate", isDirectory: true)
-      .appendingPathComponent("Vault", isDirectory: true)
+    return applicationSupport.appendingPathComponent("PrivacyGate", isDirectory: true)
+  }
+
+  private func preparePrivateDirectory(_ directory: URL) throws -> URL {
     try FileManager.default.createDirectory(
       at: directory,
       withIntermediateDirectories: true,
@@ -134,8 +150,9 @@ import UIKit
     )
     var values = URLResourceValues()
     values.isExcludedFromBackup = true
-    try directory.setResourceValues(values)
-    return directory
+    var mutableDirectory = directory
+    try mutableDirectory.setResourceValues(values)
+    return mutableDirectory
   }
 
   private func existingVaultKey() throws -> SymmetricKey? {

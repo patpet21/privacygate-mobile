@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/detection/detection_engine.dart';
 import '../../core/domain/analysis_document.dart';
+import '../../core/domain/library_document.dart';
 import '../../core/domain/page_content.dart';
 import '../../core/domain/privacy_finding.dart';
 import '../../core/domain/protection_result.dart';
+import '../../core/domain/replacement_mapping.dart';
 import '../../core/protection/privacy_gate_protector.dart';
 import '../../core/protection/protection_policy.dart';
 import 'protect_state.dart';
@@ -30,6 +32,7 @@ class ProtectController extends ChangeNotifier {
   List<PrivacyFinding> findings = const [];
   Set<String> selectedFindingIds = <String>{};
   ProtectionResult? result;
+  LibraryDocument? activeLibraryDocument;
   String restoredText = '';
   List<PrivacyFinding> residualFindings = const [];
   bool verificationPerformed = false;
@@ -47,6 +50,7 @@ class ProtectController extends ChangeNotifier {
   bool get verificationRunning => _state.isVerifying;
   int get selectedCount => selectedFindingIds.length;
   bool get hasLocalRestoreMapping => result != null && result!.mappings.isNotEmpty;
+  bool get restoringPersistedDocument => activeLibraryDocument != null;
 
   bool get exportVerified =>
       result != null &&
@@ -208,6 +212,7 @@ class ProtectController extends ChangeNotifier {
       replacementMode: _policy.replacementMode,
     );
     result = protected;
+    activeLibraryDocument = null;
     restoredText = '';
     residualFindings = const [];
     verificationError = null;
@@ -251,6 +256,34 @@ class ProtectController extends ChangeNotifier {
     restoredText = _protector.restore(text, current.mappings);
     notifyListeners();
     return restoredText;
+  }
+
+  void loadPersistedProtection(
+    LibraryDocument document,
+    List<ReplacementMapping> mappings,
+  ) {
+    ++_workflowRevision;
+    originalText = '';
+    findings = const [];
+    selectedFindingIds = <String>{};
+    _manualFindings = const [];
+    result = ProtectionResult(
+      protectedPages: [
+        PageContent(pageNumber: 1, text: document.protectedText),
+      ],
+      mappings: List<ReplacementMapping>.unmodifiable(mappings),
+      replacementMode: document.replacementMode,
+    );
+    activeLibraryDocument = document;
+    restoredText = '';
+    residualFindings = const [];
+    verificationPerformed = true;
+    verificationError = null;
+    _state = const ProtectState(
+      phase: ProtectPhase.protected,
+      operation: ProtectOperation.idle,
+    );
+    notifyListeners();
   }
 
   void clear() {
@@ -390,6 +423,7 @@ class ProtectController extends ChangeNotifier {
     ProtectOperation operation = ProtectOperation.idle,
   }) {
     result = null;
+    activeLibraryDocument = null;
     restoredText = '';
     residualFindings = const [];
     verificationPerformed = false;

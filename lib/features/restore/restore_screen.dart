@@ -156,6 +156,11 @@ class _RestoreScreenState extends State<RestoreScreen> {
     final mappingCount = result?.mappings.length ?? 0;
     final hasMapping = controller.hasLocalRestoreMapping;
     final restored = _restored.isNotEmpty;
+    final persistedDocument = controller.activeLibraryDocument;
+    final sourceLabel = persistedDocument?.title ?? 'Current Protect session';
+    final sourceDetail = persistedDocument == null
+        ? '$mappingCount reversible mapping(s) available locally'
+        : '$mappingCount encrypted mapping(s) loaded from Mobile Vault';
 
     return Scaffold(
       backgroundColor: PgColors.background,
@@ -294,15 +299,17 @@ class _RestoreScreenState extends State<RestoreScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Current Protect session',
-                                style: TextStyle(
+                              Text(
+                                sourceLabel,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   color: PgColors.navy,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                               Text(
-                                '$mappingCount reversible mapping(s) available locally',
+                                sourceDetail,
                                 style: const TextStyle(
                                   color: PgColors.textSecondary,
                                   fontSize: 11,

@@ -39,6 +39,14 @@ class MainActivity : FlutterActivity() {
                     result.success(directory.absolutePath)
                 }
 
+                "libraryDirectoryPath" -> {
+                    val directory = File(filesDir, "Library")
+                    if (!directory.exists() && !directory.mkdirs()) {
+                        throw IllegalStateException("Unable to create Library directory")
+                    }
+                    result.success(directory.absolutePath)
+                }
+
                 "encrypt" -> {
                     val clearText = call.argument<ByteArray>("clearText")
                         ?: throw IllegalArgumentException("Missing clearText")

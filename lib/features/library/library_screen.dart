@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../app/mobile_design.dart';
+import '../../core/domain/library_document.dart';
+import '../../core/library/protected_library_service.dart';
 import '../../core/settings/privacy_gate_settings.dart';
 
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({required this.settings, super.key});
+  const LibraryScreen({
+    required this.settings,
+    required this.active,
+    required this.libraryProvider,
+    required this.onOpenRestoreDocument,
+    super.key,
+  });
 
   final PrivacyGateSettings settings;
+  final bool active;
+  final Future<ProtectedLibraryService> Function() libraryProvider;
+  final Future<void> Function(BuildContext context, LibraryDocument document)
+      onOpenRestoreDocument;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -14,6 +26,12 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   var _filter = 0;
+  var _loading = false;
+  var _usedBytes = 0;
+  String? _error;
+  String? _openingDocumentId;
+  ProtectedLibraryService? _service;
+  List<LibraryDocument> _documents = const [];
 
   static const _filters = [
     _LibraryFilterData('All', Icons.done_rounded),
@@ -26,26 +44,138 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void initState() {
     super.initState();
-    widget.settings.addListener(_refresh);
+    widget.settings.addListener(_refreshSettings);
+    if (widget.active) Future<void>.microtask(_ensureLoaded);
+  }
+
+  @override
+  void didUpdateWidget(covariant LibraryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings != widget.settings) {
+      oldWidget.settings.removeListener(_refreshSettings);
+      widget.settings.addListener(_refreshSettings);
+    }
+    if (!oldWidget.active && widget.active) {
+      Future<void>.microtask(_ensureLoaded);
+    }
   }
 
   @override
   void dispose() {
-    widget.settings.removeListener(_refresh);
+    widget.settings.removeListener(_refreshSettings);
+    _service?.removeListener(_serviceChanged);
     super.dispose();
   }
 
-  void _refresh() => setState(() {});
+  void _refreshSettings() {
+    if (mounted) setState(() {});
+  }
+
+  void _serviceChanged() {
+    if (mounted) _refreshDocuments();
+  }
+
+  Future<void> _ensureLoaded() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final service = await widget.libraryProvider();
+      if (!mounted) return;
+      if (!identical(_service, service)) {
+        _service?.removeListener(_serviceChanged);
+        _service = service;
+        service.addListener(_serviceChanged);
+      }
+      await _refreshDocuments(showLoading: false);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _refreshDocuments({bool showLoading = false}) async {
+    final service = _service;
+    if (service == null) return;
+    if (showLoading && mounted) setState(() => _loading = true);
+    try {
+      final documents = await service.listDocuments();
+      final usedBytes = await service.storageBytes();
+      if (!mounted) return;
+      setState(() {
+        _documents = documents;
+        _usedBytes = usedBytes;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (showLoading && mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggleFavorite(LibraryDocument document) async {
+    final service = _service;
+    if (service == null) return;
+    try {
+      await service.setFavorite(document.documentId, !document.favorite);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update favorite: $error')),
+      );
+    }
+  }
+
+  Future<void> _openRestore(LibraryDocument document) async {
+    if (_openingDocumentId != null || !document.hasMapping) return;
+    setState(() => _openingDocumentId = document.documentId);
+    try {
+      await widget.onOpenRestoreDocument(context, document);
+    } finally {
+      if (mounted) setState(() => _openingDocumentId = null);
+    }
+  }
+
+  List<LibraryDocument> get _filteredDocuments {
+    switch (_filter) {
+      case 1:
+        return _documents
+            .where((document) => document.sourceKind == 'desktop')
+            .toList(growable: false);
+      case 2:
+        return _documents
+            .where((document) => document.sourceKind != 'desktop')
+            .toList(growable: false);
+      case 3:
+        return _documents.where((document) => document.hasMapping).toList(growable: false);
+      case 4:
+        return _documents.where((document) => document.favorite).toList(growable: false);
+      default:
+        return _documents;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
+    final capacityBytes = settings.effectiveVaultMegabytes * 1024 * 1024;
+    final progress = capacityBytes <= 0
+        ? 0.0
+        : (_usedBytes / capacityBytes).clamp(0.0, 1.0).toDouble();
+    final visibleDocuments = _filteredDocuments;
+
     return PgPage(
       children: [
         const PgHeader(),
         const PgTitle(
           title: 'Library',
-          subtitle: 'Your protected files, available everywhere.',
+          subtitle: 'Protected copies saved locally on this device.',
         ),
         _LibraryFilterBar(
           selected: _filter,
@@ -58,25 +188,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
             children: [
               const PgSectionHeader(title: 'Mobile Vault'),
               const Text(
-                'Secure storage for offline access on this device.',
+                'Protected copies and encrypted restore mappings stored on this device.',
                 style: TextStyle(color: PgColors.textSecondary),
               ),
               const SizedBox(height: 16),
               ClipRRect(
                 borderRadius: BorderRadius.circular(99),
-                child: const LinearProgressIndicator(
+                child: LinearProgressIndicator(
                   minHeight: 10,
-                  value: 0,
-                  backgroundColor: Color(0xFFE5EAF3),
+                  value: progress,
+                  backgroundColor: const Color(0xFFE5EAF3),
                 ),
               ),
               const SizedBox(height: 9),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '0 MB used',
-                      style: TextStyle(
+                      '${_formatBytes(_usedBytes)} used',
+                      style: const TextStyle(
                         color: PgColors.navy,
                         fontWeight: FontWeight.w700,
                       ),
@@ -172,45 +302,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 16),
         PgCard(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PgSectionHeader(
-                title: 'Files in ${_filters[_filter].label.toLowerCase()}',
-              ),
-              const SizedBox(height: 18),
-              PgEmptyState(
-                icon: _filters[_filter].icon,
-                title: 'No files here yet',
-                body: _emptyStateBody(_filter),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        PgCard(
-          child: Row(
-            children: [
-              const PgIconBox(icon: Icons.phone_android_outlined),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Make available on mobile',
-                      style: TextStyle(
-                        color: PgColors.navy,
-                        fontWeight: FontWeight.w800,
-                      ),
+              Row(
+                children: [
+                  Expanded(
+                    child: PgSectionHeader(
+                      title: 'Files in ${_filters[_filter].label.toLowerCase()}',
                     ),
-                    Text(
-                      'Offline download becomes available after Desktop pairing.',
-                      style: TextStyle(color: PgColors.textSecondary),
-                    ),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh Library',
+                    onPressed: _loading ? null : () => _refreshDocuments(showLoading: true),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
               ),
-              const Icon(Icons.chevron_right_rounded),
+              const SizedBox(height: 12),
+              if (_loading && _documents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_error != null)
+                PgEmptyState(
+                  icon: Icons.error_outline_rounded,
+                  title: 'Library unavailable',
+                  body: _error!,
+                )
+              else if (visibleDocuments.isEmpty)
+                PgEmptyState(
+                  icon: _filters[_filter].icon,
+                  title: 'No files here yet',
+                  body: _emptyStateBody(_filter),
+                )
+              else
+                for (var index = 0; index < visibleDocuments.length; index++) ...[
+                  _LibraryDocumentTile(
+                    document: visibleDocuments[index],
+                    opening: _openingDocumentId == visibleDocuments[index].documentId,
+                    onFavorite: () => _toggleFavorite(visibleDocuments[index]),
+                    onRestore: visibleDocuments[index].hasMapping
+                        ? () => _openRestore(visibleDocuments[index])
+                        : null,
+                  ),
+                  if (index != visibleDocuments.length - 1)
+                    const Divider(height: 20),
+                ],
             ],
           ),
         ),
@@ -224,7 +362,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Library keeps Desktop parity at the data boundary: only protected copies can become available to AI. Originals and restore mappings remain outside MCP access.',
+                  'Only protected copies are indexed here. Original values used for reversible restore live only inside the encrypted local Vault and are never exposed to MCP or AI providers.',
                   style: TextStyle(color: PgColors.textSecondary, height: 1.35),
                 ),
               ),
@@ -243,19 +381,168 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return '$megabytes MB capacity';
   }
 
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kilobytes = bytes / 1024;
+    if (kilobytes < 1024) return '${kilobytes.toStringAsFixed(1)} KB';
+    final megabytes = kilobytes / 1024;
+    return '${megabytes.toStringAsFixed(1)} MB';
+  }
+
   String _emptyStateBody(int filter) {
     switch (filter) {
       case 1:
-        return 'Desktop-protected documents appear here after a trusted pairing and sync.';
+        return 'Desktop-protected documents will appear here only after trusted pairing is implemented.';
       case 2:
-        return 'Files explicitly kept for offline mobile access appear here.';
+        return 'Protected copies explicitly saved on this mobile device appear here.';
       case 3:
-        return 'Protected files with a local restore mapping appear here.';
+        return 'Reversible protected copies with an encrypted local mapping appear here.';
       case 4:
-        return 'Favorite protected files appear here.';
+        return 'Tap the star on a saved protected copy to keep it in Favorites.';
       default:
-        return 'Protected files and offline sessions will appear here once Vault persistence is implemented.';
+        return 'Protect content, run the verification scan, then use Save to Library.';
     }
+  }
+}
+
+class _LibraryDocumentTile extends StatelessWidget {
+  const _LibraryDocumentTile({
+    required this.document,
+    required this.opening,
+    required this.onFavorite,
+    required this.onRestore,
+  });
+
+  final LibraryDocument document;
+  final bool opening;
+  final VoidCallback onFavorite;
+  final VoidCallback? onRestore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PgIconBox(icon: Icons.description_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    document.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: PgColors.navy,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${document.sourceName} · ${document.findingsCount} protected · ${_formatDate(document.updatedAt)}',
+                    style: const TextStyle(
+                      color: PgColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: document.favorite ? 'Remove favorite' : 'Add favorite',
+              onPressed: onFavorite,
+              icon: Icon(
+                document.favorite ? Icons.star_rounded : Icons.star_border_rounded,
+                color: document.favorite ? const Color(0xFFF0A000) : PgColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            _LibraryBadge(label: document.replacementMode.toUpperCase()),
+            if (document.hasMapping)
+              const _LibraryBadge(
+                label: 'RESTORABLE',
+                positive: true,
+              ),
+            for (final entity in document.entityTypes.take(3))
+              _LibraryBadge(label: entity.replaceAll('_', ' ')),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Text(
+          document.protectedText,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: PgColors.textSecondary,
+            fontSize: 12,
+            height: 1.35,
+          ),
+        ),
+        if (document.hasMapping) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: opening ? null : onRestore,
+              icon: opening
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.restore_rounded),
+              label: Text(opening ? 'Opening…' : 'Open Restore'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _formatDate(DateTime value) {
+    final local = value.toLocal();
+    String two(int item) => item.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
+  }
+}
+
+class _LibraryBadge extends StatelessWidget {
+  const _LibraryBadge({required this.label, this.positive = false});
+
+  final String label;
+  final bool positive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: positive ? PgColors.greenSoft : const Color(0xFFF3F7FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: positive ? const Color(0xFFB7E8C7) : PgColors.border,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: positive ? PgColors.green : PgColors.blue,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 

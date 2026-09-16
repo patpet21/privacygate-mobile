@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../core/detection/desktop_rule_detector.dart';
 import '../core/detection/detection_engine.dart';
+import '../core/domain/library_document.dart';
+import '../core/domain/protection_result.dart';
+import '../core/library/protected_library_service.dart';
 import '../core/protection/privacy_gate_protector.dart';
 import '../core/protection/protection_policy.dart';
 import '../core/settings/privacy_gate_settings.dart';
@@ -25,7 +28,10 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
   late final PrivacyGateSettings _settings;
   late final ProtectionPolicy _protectionPolicy;
   late final ProtectController _protectController;
+  Future<ProtectedLibraryService>? _libraryFuture;
+  ProtectionResult? _savedResult;
   var _selectedIndex = 0;
+  var _saving = false;
 
   @override
   void initState() {
@@ -37,14 +43,23 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
       protector: const PrivacyGateProtector(),
       policy: _protectionPolicy,
     );
+    _protectController.addListener(_refreshFromProtect);
   }
 
   @override
   void dispose() {
+    _protectController.removeListener(_refreshFromProtect);
     _protectController.dispose();
     _protectionPolicy.dispose();
     _settings.dispose();
     super.dispose();
+  }
+
+  Future<ProtectedLibraryService> _library() =>
+      _libraryFuture ??= ProtectedLibraryService.openDefault();
+
+  void _refreshFromProtect() {
+    if (mounted) setState(() {});
   }
 
   void _selectTab(int index) {
@@ -63,6 +78,64 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
     );
   }
 
+  Future<void> _saveCurrentProtected(BuildContext scaffoldContext) async {
+    final result = _protectController.result;
+    if (_saving ||
+        result == null ||
+        !_protectController.exportVerified ||
+        identical(_savedResult, result)) {
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final service = await _library();
+      final document = await service.saveVerifiedProtection(
+        profileKey: _protectController.policy.profileKey,
+        result: result,
+      );
+      if (!mounted || !scaffoldContext.mounted) return;
+      setState(() => _savedResult = result);
+      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        SnackBar(
+          content: Text('${document.title} saved locally.'),
+          action: SnackBarAction(
+            label: 'View Library',
+            onPressed: () => _selectTab(2),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted || !scaffoldContext.mounted) return;
+      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        SnackBar(content: Text('Could not save to Library: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _openLibraryRestore(
+    BuildContext context,
+    LibraryDocument document,
+  ) async {
+    try {
+      final service = await _library();
+      final stored = await service.loadProtection(document.documentId);
+      if (!mounted || !context.mounted) return;
+      _protectController.loadPersistedProtection(
+        stored.document,
+        stored.mappings,
+      );
+      _openRestore(context);
+    } catch (error) {
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open local restore data: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.fromSeed(
@@ -72,6 +145,10 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
       primary: PgColors.blue,
       surface: PgColors.surface,
     );
+    final canSave = _selectedIndex == 1 &&
+        _protectController.exportVerified &&
+        _protectController.result != null &&
+        !identical(_savedResult, _protectController.result);
 
     return MaterialApp(
       title: 'PrivacyGate',
@@ -141,11 +218,34 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
               controller: _protectController,
               onOpenRestore: _openRestore,
             ),
-            LibraryScreen(settings: _settings),
+            LibraryScreen(
+              settings: _settings,
+              active: _selectedIndex == 2,
+              libraryProvider: _library,
+              onOpenRestoreDocument: _openLibraryRestore,
+            ),
             const ActivityScreen(),
             SettingsScreen(settings: _settings),
           ],
         ),
+        floatingActionButton: canSave
+            ? Builder(
+                builder: (scaffoldContext) => FloatingActionButton.extended(
+                  key: const ValueKey('save-to-library'),
+                  onPressed: _saving
+                      ? null
+                      : () => _saveCurrentProtected(scaffoldContext),
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(_saving ? 'Saving…' : 'Save to Library'),
+                ),
+              )
+            : null,
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: _selectTab,

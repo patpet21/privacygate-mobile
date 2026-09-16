@@ -158,6 +158,17 @@ class EncryptedVaultRepository {
     return _fileFor(documentId).exists();
   }
 
+  Future<int> storageBytes() async {
+    if (!await _directory.exists()) return 0;
+    var total = 0;
+    await for (final entity in _directory.list()) {
+      if (entity is File && entity.path.endsWith('.pgvault')) {
+        total += await entity.length();
+      }
+    }
+    return total;
+  }
+
   Future<void> delete(String documentId) async {
     _validateDocumentId(documentId);
     final file = _fileFor(documentId);
