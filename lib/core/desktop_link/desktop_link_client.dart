@@ -294,7 +294,11 @@ class DesktopLinkClient {
       if (bearerToken != null) {
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
       }
-      if (method != 'GET') request.write(jsonEncode(body));
+      if (method != 'GET') {
+        final bodyBytes = utf8.encode(jsonEncode(body));
+        request.contentLength = bodyBytes.length;
+        request.add(bodyBytes);
+      }
       final response = await request.close().timeout(const Duration(seconds: 60));
       final certificate = response.certificate;
       if (certificate == null || _normalizePem(certificate.pem) != expectedPem) {
@@ -309,7 +313,9 @@ class DesktopLinkClient {
       final payload = Map<String, Object?>.from(decoded);
       if (response.statusCode != HttpStatus.ok) {
         final error = payload['error'] ?? 'http_${response.statusCode}';
-        throw DesktopLinkProtocolException('Desktop rejected request: $error');
+        final message = payload['message'];
+        final detail = message is String && message.isNotEmpty ? ' — $message' : '';
+        throw DesktopLinkProtocolException('Desktop rejected request: $error$detail');
       }
       return payload;
     } finally {
