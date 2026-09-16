@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/desktop_link/desktop_link_client.dart';
 import '../../core/desktop_link/desktop_link_models.dart';
@@ -55,6 +56,15 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
     _bundle.clear();
     widget.client.analysisEnabled = false;
     _message = 'Paired after Desktop approval. Enable Desktop analysis below only when you want to send text to this computer.';
+  }
+
+  Future<void> _scanQr() async {
+    final raw = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const _DesktopPairingQrScannerScreen()),
+    );
+    if (!mounted || raw == null || raw.trim().isEmpty) return;
+    _bundle.text = raw.trim();
+    await _run(_pair);
   }
 
   @override
@@ -121,6 +131,14 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
           decoration: const InputDecoration(labelText: 'Device name'),
         ),
         const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: _busy ? null : _scanQr,
+          icon: const Icon(Icons.qr_code_scanner),
+          label: const Text('Scan pairing QR from Desktop'),
+        ),
+        const SizedBox(height: 12),
+        const Center(child: Text('or paste the temporary JSON manually')),
+        const SizedBox(height: 12),
         TextField(
           controller: _bundle,
           minLines: 4,
@@ -133,9 +151,9 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        FilledButton(
+        OutlinedButton(
           onPressed: _busy ? null : () => _run(_pair),
-          child: const Text('Request pairing with Desktop'),
+          child: const Text('Request pairing with pasted data'),
         ),
       ],
       const SizedBox(height: 20),
@@ -144,5 +162,68 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
         'Pairing does not grant access to the Desktop Library.',
       ),
     ]),
+  );
+}
+
+class _DesktopPairingQrScannerScreen extends StatefulWidget {
+  const _DesktopPairingQrScannerScreen();
+
+  @override
+  State<_DesktopPairingQrScannerScreen> createState() =>
+      _DesktopPairingQrScannerScreenState();
+}
+
+class _DesktopPairingQrScannerScreenState
+    extends State<_DesktopPairingQrScannerScreen> {
+  bool _handled = false;
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_handled) return;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue;
+      if (raw == null || raw.trim().isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map || decoded['version'] != 1) continue;
+      } catch (_) {
+        continue;
+      }
+      _handled = true;
+      Navigator.of(context).pop(raw);
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Scan Desktop QR')),
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        MobileScanner(
+          formats: const [BarcodeFormat.qrCode],
+          onDetect: _onDetect,
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              margin: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Point the camera at the temporary QR shown by PrivacyGate Desktop. '
+                'After scanning, approve the request on the computer.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
