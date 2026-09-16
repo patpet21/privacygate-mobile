@@ -54,6 +54,10 @@ class DesktopLinkCredential {
     required this.detectionPackSha256,
     required this.clientId,
     required this.clientName,
+    this.relayUrl = '',
+    this.relayRoomId = '',
+    this.relayToken = '',
+    this.remoteSecret = '',
   });
 
   final String endpoint;
@@ -62,6 +66,16 @@ class DesktopLinkCredential {
   final String detectionPackSha256;
   final String clientId;
   final String clientName;
+  final String relayUrl;
+  final String relayRoomId;
+  final String relayToken;
+  final String remoteSecret;
+
+  bool get hasRemoteRelay =>
+      relayUrl.isNotEmpty &&
+      relayRoomId.isNotEmpty &&
+      relayToken.isNotEmpty &&
+      remoteSecret.isNotEmpty;
 
   Map<String, Object?> toJson() => {
         'endpoint': endpoint,
@@ -70,7 +84,65 @@ class DesktopLinkCredential {
         'detectionPackSha256': detectionPackSha256,
         'clientId': clientId,
         'clientName': clientName,
+        'relayUrl': relayUrl,
+        'relayRoomId': relayRoomId,
+        'relayToken': relayToken,
+        'remoteSecret': remoteSecret,
       };
+
+  DesktopLinkCredential copyWith({
+    String? endpoint,
+    String? mobileToken,
+    String? certificatePem,
+    String? detectionPackSha256,
+    String? clientId,
+    String? clientName,
+    String? relayUrl,
+    String? relayRoomId,
+    String? relayToken,
+    String? remoteSecret,
+  }) =>
+      DesktopLinkCredential(
+        endpoint: endpoint ?? this.endpoint,
+        mobileToken: mobileToken ?? this.mobileToken,
+        certificatePem: certificatePem ?? this.certificatePem,
+        detectionPackSha256: detectionPackSha256 ?? this.detectionPackSha256,
+        clientId: clientId ?? this.clientId,
+        clientName: clientName ?? this.clientName,
+        relayUrl: relayUrl ?? this.relayUrl,
+        relayRoomId: relayRoomId ?? this.relayRoomId,
+        relayToken: relayToken ?? this.relayToken,
+        remoteSecret: remoteSecret ?? this.remoteSecret,
+      );
+
+  DesktopLinkCredential withRemoteRelay(Map<String, Object?> payload) {
+    final version = payload['version'];
+    final url = payload['url'];
+    final roomId = payload['room_id'];
+    final token = payload['relay_token'];
+    final secret = payload['remote_secret'];
+    final cipher = payload['cipher'];
+    final contentStorage = payload['content_storage'];
+    if (version != 1 ||
+        url is! String ||
+        !url.startsWith('wss://') ||
+        roomId is! String ||
+        roomId.isEmpty ||
+        token is! String ||
+        token.isEmpty ||
+        secret is! String ||
+        secret.isEmpty ||
+        cipher != 'AES-256-GCM' ||
+        contentStorage != false) {
+      throw const FormatException('Desktop remote Device Trust data is invalid.');
+    }
+    return copyWith(
+      relayUrl: url,
+      relayRoomId: roomId,
+      relayToken: token,
+      remoteSecret: secret,
+    );
+  }
 
   factory DesktopLinkCredential.fromJson(Map<String, Object?> json) {
     String read(String key) {
@@ -81,6 +153,11 @@ class DesktopLinkCredential {
       return value;
     }
 
+    String optional(String key) {
+      final value = json[key];
+      return value is String ? value : '';
+    }
+
     return DesktopLinkCredential(
       endpoint: read('endpoint'),
       mobileToken: read('mobileToken'),
@@ -88,6 +165,10 @@ class DesktopLinkCredential {
       detectionPackSha256: read('detectionPackSha256'),
       clientId: read('clientId'),
       clientName: read('clientName'),
+      relayUrl: optional('relayUrl'),
+      relayRoomId: optional('relayRoomId'),
+      relayToken: optional('relayToken'),
+      remoteSecret: optional('remoteSecret'),
     );
   }
 }
