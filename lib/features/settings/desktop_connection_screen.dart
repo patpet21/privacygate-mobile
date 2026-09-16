@@ -175,6 +175,9 @@ class _DesktopPairingQrScannerScreen extends StatefulWidget {
 
 class _DesktopPairingQrScannerScreenState
     extends State<_DesktopPairingQrScannerScreen> {
+  final MobileScannerController _scannerController = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+  );
   bool _handled = false;
 
   void _onDetect(BarcodeCapture capture) {
@@ -195,13 +198,19 @@ class _DesktopPairingQrScannerScreenState
   }
 
   @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Scan Desktop QR')),
     body: Stack(
       fit: StackFit.expand,
       children: [
         MobileScanner(
-          formats: const [BarcodeFormat.qrCode],
+          controller: _scannerController,
           onDetect: _onDetect,
         ),
         SafeArea(
