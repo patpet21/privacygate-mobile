@@ -43,7 +43,9 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
     super.initState();
     _settings = PrivacyGateSettings();
     _desktopLink = DesktopLinkClient(DesktopLinkCredentialStore());
-    Future<void>.microtask(_desktopLink.refreshConnectionState);
+    Future<void>.microtask(() async {
+      await _desktopLink.refreshConnectionState();
+    });
     _protectionPolicy = ProtectionPolicy();
     _protectController = ProtectController(
       detector: DocumentDetectionEngine(DetectionEngineRouter(
