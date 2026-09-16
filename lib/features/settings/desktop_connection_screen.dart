@@ -41,11 +41,13 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
   }
 
   String _statusMessage(DesktopLinkStatus status) => switch (status) {
-        DesktopLinkStatus.connected =>
-          'Connected — Desktop is reachable and this pairing is accepted.',
-        DesktopLinkStatus.checking => 'Checking Desktop connection…',
+        DesktopLinkStatus.connectedLocal =>
+          'Connected · Local — direct pinned-TLS connection on the current network.',
+        DesktopLinkStatus.connectedRemote =>
+          'Connected · Remote — end-to-end encrypted Device Trust relay is active.',
+        DesktopLinkStatus.checking => 'Checking Local and Remote Device Trust…',
         DesktopLinkStatus.offline =>
-          'Paired, but Desktop is currently offline or unreachable on the local network.',
+          'Paired, but Desktop is currently offline. Local and Remote connectivity were both unavailable.',
         DesktopLinkStatus.unpaired => 'No paired Desktop.',
       };
 
@@ -55,9 +57,8 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
       await action();
     } on DesktopLinkProtocolException catch (error) {
       _message = error.message;
-    } catch (_) {
-      _message =
-          'Connection failed. Check that PrivacyGate Desktop is open, Device Trust is online and both devices are on the same local network.';
+    } catch (error) {
+      _message = 'Connection failed: $error';
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -80,8 +81,9 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
     _name.text = _credential!.clientName;
     _bundle.clear();
     widget.client.analysisEnabled = false;
-    _message =
-        'Connected after Desktop approval. You can rename this device at any time without pairing again.';
+    _message = _credential!.hasRemoteRelay
+        ? 'Connected after Desktop approval. Device Trust is ready for both Local and Remote use.'
+        : 'Connected after Desktop approval. Remote Device Trust will be provisioned automatically when available.';
   }
 
   Future<void> _renameDevice() async {
@@ -107,8 +109,8 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
             title: const Text('Remove trusted device?'),
             content: Text(
               'Remove “${current.clientName}” from PrivacyGate Desktop?\n\n'
-              'Its credential will be revoked and its protected-copy grants removed. '
-              'Protected copies already saved on this phone will remain local.',
+              'Its credential and future Library grants will be revoked. '
+              'Copies already saved on this phone will remain local.',
             ),
             actions: [
               TextButton(
@@ -200,6 +202,27 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
                           ),
                         ),
                         if (_credential != null) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 7,
+                            children: [
+                              const Chip(label: Text('Local TLS')),
+                              Chip(
+                                avatar: Icon(
+                                  _credential!.hasRemoteRelay
+                                      ? Icons.check_circle_outline_rounded
+                                      : Icons.hourglass_top_rounded,
+                                  size: 17,
+                                ),
+                                label: Text(
+                                  _credential!.hasRemoteRelay
+                                      ? 'Remote E2E ready'
+                                      : 'Remote setup pending',
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 5),
                           Text(
                             _credential!.endpoint,
@@ -280,8 +303,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Use Desktop analysis this session'),
                       subtitle: const Text(
-                        'Sends original text over encrypted TLS only while enabled. '
-                        'Restore mappings remain on this phone and this switch resets after restart.',
+                        'Original text is sent only while enabled. Local uses pinned TLS; Remote adds an application-level AES-256-GCM tunnel through the relay. The switch resets after restart.',
                       ),
                       value: widget.client.analysisEnabled,
                       onChanged: _busy
@@ -326,7 +348,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
                   children: [
                     const PgSectionHeader(title: 'Pair this phone'),
                     const Text(
-                      'Connect only to a computer you trust. A scanned QR creates a request; Desktop approval is still required before any credential is released.',
+                      'Pair once while the phone can reach the Desktop locally. After approval, Device Trust can use Local or Remote automatically without another QR.',
                       style: TextStyle(
                         color: PgColors.textSecondary,
                         height: 1.35,
@@ -382,7 +404,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
             const PgCard(
               backgroundColor: Color(0xFFF3F7FF),
               child: Text(
-                'Selective protected-copy transfer is explicit. Pairing alone never exposes the Desktop Library; only items authorized for this device appear in Mobile, and nothing downloads automatically.',
+                'Device Trust prefers the direct local connection. When Local is unavailable it falls back to the ciphertext-only remote relay. Library access remains explicit and item-by-item; nothing syncs automatically.',
                 style: TextStyle(
                   color: PgColors.textSecondary,
                   height: 1.35,
