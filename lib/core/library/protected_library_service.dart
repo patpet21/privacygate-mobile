@@ -97,14 +97,14 @@ class ProtectedLibraryService extends ChangeNotifier {
     return document;
   }
 
-  Future<LibraryDocument> saveDesktopProtectedCopy(
+  Future<LibraryDocument> saveDesktopTransfer(
     DesktopProtectedCopyDocument copy,
   ) async {
-    if (copy.hasMapping) {
-      throw StateError('Desktop protected copies must never contain restore mappings.');
-    }
     if (copy.protectedText.trim().isEmpty) {
       throw ArgumentError('Protected text cannot be empty');
+    }
+    if (copy.hasMapping != copy.restoreMappings.isNotEmpty) {
+      throw StateError('Desktop transfer Restore metadata is inconsistent.');
     }
 
     final now = DateTime.now().toUtc();
@@ -113,6 +113,23 @@ class ProtectedLibraryService extends ChangeNotifier {
       existing = await _library.get(copy.localDocumentId);
     } on StateError {
       existing = null;
+    }
+
+    // A protected-only refresh must never silently strip an already-downloaded
+    // Full offline session or leave a stale mapping paired with newer text.
+    if (!copy.hasMapping && existing?.hasMapping == true) {
+      throw StateError(
+        'A Full offline session is already saved for this document. Use its Full offline session grant to update it.',
+      );
+    }
+
+    final previousMappings = existing?.hasMapping == true
+        ? await _vault.loadMappings(copy.localDocumentId)
+        : const <ReplacementMapping>[];
+    var wroteNewMappings = false;
+    if (copy.hasMapping) {
+      await _vault.saveMappings(copy.localDocumentId, copy.restoreMappings);
+      wroteNewMappings = true;
     }
 
     final document = LibraryDocument(
@@ -125,17 +142,41 @@ class ProtectedLibraryService extends ChangeNotifier {
       findingsCount: copy.findingsCount,
       entityTypes: List<String>.unmodifiable(copy.entityTypes),
       labels: List<String>.unmodifiable(copy.labels),
-      replacementMode: 'protected_copy',
+      replacementMode: copy.mode,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
-      hasMapping: false,
+      hasMapping: copy.hasMapping,
       favorite: existing?.favorite ?? copy.favorite,
       mcpShared: false,
     );
 
-    await _library.save(document);
+    try {
+      await _library.save(document);
+    } catch (_) {
+      if (wroteNewMappings) {
+        if (previousMappings.isNotEmpty) {
+          await _vault.saveMappings(copy.localDocumentId, previousMappings);
+        } else {
+          await _vault.delete(copy.localDocumentId);
+        }
+      }
+      rethrow;
+    }
+
+    if (!copy.hasMapping) {
+      await _vault.delete(copy.localDocumentId);
+    }
     notifyListeners();
     return document;
+  }
+
+  Future<LibraryDocument> saveDesktopProtectedCopy(
+    DesktopProtectedCopyDocument copy,
+  ) async {
+    if (copy.hasMapping) {
+      throw StateError('Use saveDesktopTransfer for Full offline sessions.');
+    }
+    return saveDesktopTransfer(copy);
   }
 
   Future<StoredProtection> loadProtection(String documentId) async {
