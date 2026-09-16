@@ -49,11 +49,12 @@ class DesktopLinkClient {
   }
 
   Future<bool> checkConnection() async {
-    var credential = await credentials.load();
-    if (credential == null) {
+    final loadedCredential = await credentials.load();
+    if (loadedCredential == null) {
       DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
       return false;
     }
+    var credential = loadedCredential;
     DesktopLinkPresence.set(DesktopLinkStatus.checking);
 
     try {
