@@ -170,14 +170,12 @@ class ProtectedLibraryService extends ChangeNotifier {
     return document;
   }
 
+  // Backward-compatible entry point used by the current Library screen. The
+  // payload itself decides whether this is a protected-only copy or a Full
+  // offline session; saveDesktopTransfer enforces the vault boundary.
   Future<LibraryDocument> saveDesktopProtectedCopy(
     DesktopProtectedCopyDocument copy,
-  ) async {
-    if (copy.hasMapping) {
-      throw StateError('Use saveDesktopTransfer for Full offline sessions.');
-    }
-    return saveDesktopTransfer(copy);
-  }
+  ) => saveDesktopTransfer(copy);
 
   Future<StoredProtection> loadProtection(String documentId) async {
     final document = await _library.get(documentId);
