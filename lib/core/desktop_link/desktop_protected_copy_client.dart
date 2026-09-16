@@ -5,6 +5,7 @@ import 'dart:io';
 import 'desktop_link_credential_store.dart';
 import 'desktop_link_status.dart';
 import 'desktop_protected_copy.dart';
+import 'desktop_remote_relay_client.dart';
 
 class DesktopProtectedCopyException implements Exception {
   const DesktopProtectedCopyException(this.message);
@@ -19,6 +20,7 @@ class DesktopProtectedCopyClient {
   DesktopProtectedCopyClient(this.credentials);
 
   final DesktopLinkCredentialStore credentials;
+  final DesktopRemoteRelayClient _remoteRelay = const DesktopRemoteRelayClient();
 
   Future<bool> hasCredential() => credentials.contains();
 
@@ -32,13 +34,13 @@ class DesktopProtectedCopyClient {
     final rawGrants = payload['grants'];
     if (rawGrants is! List) {
       throw const DesktopProtectedCopyException(
-        'Desktop returned an invalid protected-copy list.',
+        'Desktop returned an invalid Library transfer list.',
       );
     }
     return List<DesktopProtectedCopyGrant>.unmodifiable(
       rawGrants.map((item) {
         if (item is! Map) {
-          throw const FormatException('Invalid protected-copy grant.');
+          throw const FormatException('Invalid Desktop Library grant.');
         }
         return DesktopProtectedCopyGrant.fromJson(
           Map<String, Object?>.from(item),
@@ -50,7 +52,7 @@ class DesktopProtectedCopyClient {
   Future<DesktopProtectedCopyDocument> fetch(String grantId) async {
     if (!RegExp(r'^[A-Za-z0-9_-]{12,128}$').hasMatch(grantId)) {
       throw const DesktopProtectedCopyException(
-        'Protected-copy grant ID is invalid.',
+        'Desktop Library grant ID is invalid.',
       );
     }
     final payload = await _getJson(
@@ -68,15 +70,69 @@ class DesktopProtectedCopyClient {
       );
     }
 
-    final base = Uri.parse(credential.endpoint);
+    DesktopLinkPresence.set(DesktopLinkStatus.checking);
+    try {
+      final payload = await _getLocalJson(
+        endpoint: credential.endpoint,
+        path: path,
+        pinnedCertificatePem: credential.certificatePem,
+        bearerToken: credential.mobileToken,
+      );
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedLocal);
+      return payload;
+    } on SocketException {
+      return _getRemoteJson(credential, path);
+    } on TimeoutException {
+      return _getRemoteJson(credential, path);
+    } on HandshakeException {
+      return _getRemoteJson(credential, path);
+    } on FormatException catch (error) {
+      throw DesktopProtectedCopyException(error.message);
+    }
+  }
+
+  Future<Map<String, Object?>> _getRemoteJson(
+    dynamic credential,
+    String path,
+  ) async {
+    if (!credential.hasRemoteRelay) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      throw const DesktopProtectedCopyException(
+        'Desktop is offline or outside the local network, and Remote Device Trust is not provisioned yet.',
+      );
+    }
+    try {
+      final payload = await _remoteRelay.requestJson(
+        credential: credential,
+        method: 'GET',
+        path: path,
+        body: const {},
+      );
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedRemote);
+      return payload;
+    } on DesktopRemoteRelayException catch (error) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      throw DesktopProtectedCopyException(error.message);
+    } on FormatException catch (error) {
+      throw DesktopProtectedCopyException(error.message);
+    }
+  }
+
+  Future<Map<String, Object?>> _getLocalJson({
+    required String endpoint,
+    required String path,
+    required String pinnedCertificatePem,
+    required String bearerToken,
+  }) async {
+    final base = Uri.parse(endpoint);
     if (base.scheme != 'https' || base.host.isEmpty || !base.hasPort) {
       throw const DesktopProtectedCopyException(
         'Desktop endpoint must be HTTPS with an explicit port.',
       );
     }
-    final expectedPem = _normalizePem(credential.certificatePem);
+    final expectedPem = _normalizePem(pinnedCertificatePem);
     final securityContext = SecurityContext(withTrustedRoots: false)
-      ..setTrustedCertificatesBytes(utf8.encode(credential.certificatePem));
+      ..setTrustedCertificatesBytes(utf8.encode(pinnedCertificatePem));
     final client = HttpClient(context: securityContext)
       ..connectionTimeout = const Duration(seconds: 2);
     client.badCertificateCallback = (certificate, host, port) =>
@@ -84,7 +140,6 @@ class DesktopProtectedCopyClient {
         port == base.port &&
         _normalizePem(certificate.pem) == expectedPem;
 
-    DesktopLinkPresence.set(DesktopLinkStatus.checking);
     try {
       final uri = base.replace(path: path, fragment: null);
       final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
@@ -93,14 +148,14 @@ class DesktopProtectedCopyClient {
       request.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
       request.headers.set(
         HttpHeaders.authorizationHeader,
-        'Bearer ${credential.mobileToken}',
+        'Bearer $bearerToken',
       );
 
       final response = await request.close().timeout(const Duration(seconds: 30));
       final certificate = response.certificate;
       if (certificate == null ||
           _normalizePem(certificate.pem) != expectedPem) {
-        throw const HandshakeException(
+        throw HandshakeException(
           'Desktop certificate pin did not match pairing data.',
         );
       }
@@ -125,25 +180,7 @@ class DesktopProtectedCopyClient {
           'Desktop rejected request: $error$detail',
         );
       }
-      DesktopLinkPresence.set(DesktopLinkStatus.connected);
       return payload;
-    } on SocketException {
-      DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      throw const DesktopProtectedCopyException(
-        'Desktop is offline or unreachable. Open PrivacyGate Desktop and make sure Device Trust shows Online.',
-      );
-    } on TimeoutException {
-      DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      throw const DesktopProtectedCopyException(
-        'Desktop did not respond. Check that PrivacyGate Desktop is open and Device Trust shows Online.',
-      );
-    } on HandshakeException {
-      DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      throw const DesktopProtectedCopyException(
-        'Desktop identity could not be verified. Re-pair this device from Device Trust.',
-      );
-    } on FormatException catch (error) {
-      throw DesktopProtectedCopyException(error.message);
     } finally {
       client.close(force: true);
     }
