@@ -238,7 +238,8 @@ class DesktopRemoteRelayClient {
       base64UrlEncode(bytes).replaceAll('=', '');
 
   static List<int> _b64urlDecode(String value) {
-    final padding = '=' * ((4 - value.length % 4) % 4);
+    final paddingLength = (4 - value.length % 4) % 4;
+    final padding = List<String>.filled(paddingLength, '=').join();
     return base64Url.decode('$value$padding');
   }
 }
