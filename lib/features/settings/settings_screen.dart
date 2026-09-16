@@ -81,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Pair securely and explicitly enable Desktop-assisted analysis.',
+                              'Pair securely, check reachability and control optional Desktop-assisted analysis.',
                               style: TextStyle(color: PgColors.textSecondary, height: 1.3),
                             ),
                           ],
@@ -93,13 +93,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const Divider(height: 28),
-              SwitchListTile.adaptive(
+              const ListTile(
                 contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.sync_rounded),
-                title: const Text('Selective Library transfer'),
-                subtitle: const Text('Not available yet. Pairing does not synchronize files.'),
-                value: false,
-                onChanged: null,
+                leading: Icon(Icons.mobile_friendly_rounded, color: PgColors.green),
+                title: Text('Selective protected-copy transfer'),
+                subtitle: Text(
+                  'Available after pairing. Only copies explicitly authorized on Desktop appear in Mobile Library; nothing syncs automatically.',
+                ),
+                trailing: Icon(Icons.check_circle_rounded, color: PgColors.green),
               ),
             ],
           ),
@@ -131,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         Text(
-                          'Offline capacity, cleanup and post-sync retention on this device.',
+                          'Offline capacity, cleanup and local retention on this device.',
                           style: TextStyle(color: PgColors.textSecondary, height: 1.3),
                         ),
                       ],
@@ -184,14 +185,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (value != null) settings.setRetention(value);
                 },
               ),
-              const SizedBox(height: 4),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.delete_outline_rounded),
-                title: const Text('Remove mobile copy after successful sync'),
-                subtitle: const Text('Never applies before Desktop acknowledges the transfer.'),
-                value: settings.removeMobileCopyAfterSync,
-                onChanged: settings.setRemoveMobileCopyAfterSync,
+              const SizedBox(height: 14),
+              const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.sync_disabled_rounded, color: PgColors.textSecondary),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'No background sync. Downloaded protected copies remain local until you delete them or automatic cleanup removes them.',
+                      style: TextStyle(color: PgColors.textSecondary, height: 1.3),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
