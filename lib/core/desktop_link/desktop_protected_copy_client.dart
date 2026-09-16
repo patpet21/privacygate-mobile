@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'desktop_link_credential_store.dart';
+import 'desktop_link_status.dart';
 import 'desktop_protected_copy.dart';
 
 class DesktopProtectedCopyException implements Exception {
@@ -61,6 +62,7 @@ class DesktopProtectedCopyClient {
   Future<Map<String, Object?>> _getJson(String path) async {
     final credential = await credentials.load();
     if (credential == null) {
+      DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
       throw const DesktopProtectedCopyException(
         'No paired Desktop is configured.',
       );
@@ -82,6 +84,7 @@ class DesktopProtectedCopyClient {
         port == base.port &&
         _normalizePem(certificate.pem) == expectedPem;
 
+    DesktopLinkPresence.set(DesktopLinkStatus.checking);
     try {
       final uri = base.replace(path: path, fragment: null);
       final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
@@ -122,14 +125,18 @@ class DesktopProtectedCopyClient {
           'Desktop rejected request: $error$detail',
         );
       }
+      DesktopLinkPresence.set(DesktopLinkStatus.connected);
       return payload;
     } on SocketException catch (error) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DesktopProtectedCopyException(
         'Desktop is unreachable on the local network: $error',
       );
     } on TimeoutException catch (error) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DesktopProtectedCopyException('Desktop request timed out: $error');
     } on HandshakeException catch (error) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DesktopProtectedCopyException(
         'Desktop TLS identity could not be verified: $error',
       );
