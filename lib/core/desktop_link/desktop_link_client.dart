@@ -56,8 +56,9 @@ class DesktopLinkClient {
     final id = clientId ?? _newClientId();
     Object? lastError;
     for (final endpoint in bundle.endpoints) {
+      Map<String, Object?> response;
       try {
-        final response = await _postJson(
+        response = await _postJson(
           endpoint: endpoint,
           path: '/v1/mobile/pair',
           pinnedCertificatePem: bundle.certificatePem,
@@ -67,32 +68,112 @@ class DesktopLinkClient {
             'client_name': clientName,
           },
         );
-        final token = response['mobile_token'];
-        final packSha = response['detection_pack_sha256'];
-        if (token is! String || token.isEmpty || packSha is! String || packSha.isEmpty) {
-          throw const DesktopLinkProtocolException('Desktop pairing response is incomplete.');
-        }
-        if (packSha != bundle.detectionPackSha256) {
-          throw const DesktopLinkProtocolException(
-            'Desktop detection pack changed during pairing.',
-          );
-        }
-        final credential = DesktopLinkCredential(
-          endpoint: endpoint,
-          mobileToken: token,
-          certificatePem: bundle.certificatePem,
-          detectionPackSha256: packSha,
-          clientId: id,
-          clientName: clientName,
-        );
-        await credentials.save(credential);
-        _unavailableUntil = null;
-        return credential;
       } catch (error) {
         lastError = error;
+        continue;
       }
+
+      final packSha = response['detection_pack_sha256'];
+      if (packSha is! String || packSha.isEmpty) {
+        throw const DesktopLinkProtocolException('Desktop pairing response is incomplete.');
+      }
+      if (packSha != bundle.detectionPackSha256) {
+        throw const DesktopLinkProtocolException(
+          'Desktop detection pack changed during pairing.',
+        );
+      }
+
+      final tokenValue = response['mobile_token'];
+      String? token = tokenValue is String ? tokenValue : null;
+      if (token == null || token.isEmpty) {
+        final approvalRequired = response['approval_required'] == true;
+        final requestId = response['pairing_request_id'];
+        if (!approvalRequired || requestId is! String || requestId.isEmpty) {
+          throw const DesktopLinkProtocolException(
+            'Desktop did not provide a credential or an approval request.',
+          );
+        }
+        token = await _waitForDesktopApproval(
+          endpoint: endpoint,
+          requestId: requestId,
+          bundle: bundle,
+        );
+      }
+
+      final credential = DesktopLinkCredential(
+        endpoint: endpoint,
+        mobileToken: token,
+        certificatePem: bundle.certificatePem,
+        detectionPackSha256: packSha,
+        clientId: id,
+        clientName: clientName,
+      );
+      await credentials.save(credential);
+      _unavailableUntil = null;
+      return credential;
     }
-    throw DesktopLinkProtocolException('Could not pair with Desktop: $lastError');
+    throw DesktopLinkProtocolException('Could not contact Desktop for pairing: $lastError');
+  }
+
+  Future<String> _waitForDesktopApproval({
+    required String endpoint,
+    required String requestId,
+    required DesktopLinkPairingBundle bundle,
+  }) async {
+    final deadline = DateTime.now().add(const Duration(minutes: 5));
+    Object? lastNetworkError;
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        final response = await _postJson(
+          endpoint: endpoint,
+          path: '/v1/mobile/pair/status',
+          pinnedCertificatePem: bundle.certificatePem,
+          body: const {},
+          method: 'GET',
+          queryParameters: {'request_id': requestId},
+        );
+        final responsePackSha = response['detection_pack_sha256'];
+        if (responsePackSha != bundle.detectionPackSha256) {
+          throw const DesktopLinkProtocolException(
+            'Desktop detection pack changed while pairing was awaiting approval.',
+          );
+        }
+        final status = response['pairing_status'];
+        if (status == 'approved') {
+          final token = response['mobile_token'];
+          if (token is! String || token.isEmpty) {
+            throw const DesktopLinkProtocolException(
+              'Desktop approved pairing but returned no credential.',
+            );
+          }
+          return token;
+        }
+        if (status == 'denied') {
+          throw const DesktopLinkProtocolException(
+            'Pairing was denied on Desktop.',
+          );
+        }
+        if (status == 'expired') {
+          throw const DesktopLinkProtocolException(
+            'Pairing approval expired. Create fresh pairing data on Desktop.',
+          );
+        }
+        if (status != 'pending') {
+          throw const DesktopLinkProtocolException(
+            'Desktop returned an unknown pairing approval state.',
+          );
+        }
+        lastNetworkError = null;
+      } on SocketException catch (error) {
+        lastNetworkError = error;
+      } on TimeoutException catch (error) {
+        lastNetworkError = error;
+      }
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    throw DesktopLinkProtocolException(
+      'Desktop approval timed out${lastNetworkError == null ? '' : ': $lastNetworkError'}',
+    );
   }
 
   Future<List<PrivacyFinding>> analyze(DetectionRequest request) async {
@@ -186,6 +267,7 @@ class DesktopLinkClient {
     required Map<String, Object?> body,
     String? bearerToken,
     String method = 'POST',
+    Map<String, String>? queryParameters,
   }) async {
     final base = Uri.parse(endpoint);
     if (base.scheme != 'https' || base.host.isEmpty || !base.hasPort) {
@@ -200,7 +282,11 @@ class DesktopLinkClient {
     client.badCertificateCallback = (certificate, host, port) =>
         host == base.host && port == base.port && _normalizePem(certificate.pem) == expectedPem;
     try {
-      final uri = base.replace(path: path, query: null, fragment: null);
+      final uri = base.replace(
+        path: path,
+        queryParameters: queryParameters,
+        fragment: null,
+      );
       final request = await client.openUrl(method, uri).timeout(const Duration(seconds: 3));
       request.followRedirects = false;
       request.headers.contentType = ContentType.json;
