@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/desktop_link/desktop_link_client.dart';
 import '../../core/desktop_link/desktop_link_models.dart';
+import '../../core/desktop_link/desktop_link_status.dart';
 
 class DesktopConnectionScreen extends StatefulWidget {
   const DesktopConnectionScreen({required this.client, super.key});
@@ -26,9 +27,23 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
     super.initState();
     _run(() async {
       _credential = await widget.client.credentials.load();
-      _message = _credential == null ? 'No paired Desktop.' : 'Paired — availability not checked.';
+      if (_credential == null) {
+        _message = 'No paired Desktop.';
+        return;
+      }
+      final status = await widget.client.refreshConnectionState();
+      _message = _statusMessage(status);
     });
   }
+
+  String _statusMessage(DesktopLinkStatus status) => switch (status) {
+        DesktopLinkStatus.connected =>
+          'Connected — Desktop is reachable and this pairing is accepted.',
+        DesktopLinkStatus.checking => 'Checking Desktop connection…',
+        DesktopLinkStatus.offline =>
+          'Paired, but Desktop is currently offline or unreachable on the local network.',
+        DesktopLinkStatus.unpaired => 'No paired Desktop.',
+      };
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -37,7 +52,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
     } on DesktopLinkProtocolException catch (error) {
       _message = error.message;
     } catch (_) {
-      _message = 'Connection failed. Check the Desktop service, pairing expiry and local network.';
+      _message = 'Connection failed. Check that PrivacyGate Desktop is open, Device Trust is online and both devices are on the same local network.';
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -55,7 +70,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
     _credential = await widget.client.pair(bundle, clientName: _name.text.trim());
     _bundle.clear();
     widget.client.analysisEnabled = false;
-    _message = 'Paired after Desktop approval. Enable Desktop analysis below only when you want to send text to this computer.';
+    _message = 'Connected after Desktop approval. Protected-copy transfer is available from the Mobile Library; Desktop analysis remains optional below.';
   }
 
   Future<void> _scanQr() async {
@@ -105,10 +120,8 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
           onPressed: _busy
               ? null
               : () => _run(() async {
-                    final online = await widget.client.checkConnection();
-                    _message = online
-                        ? 'Desktop reachable and pairing accepted.'
-                        : 'Desktop did not accept this pairing.';
+                    final status = await widget.client.refreshConnectionState();
+                    _message = _statusMessage(status);
                   }),
           child: const Text('Check connection'),
         ),
@@ -116,8 +129,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
           onPressed: _busy
               ? null
               : () => _run(() async {
-                    widget.client.analysisEnabled = false;
-                    await widget.client.credentials.delete();
+                    await widget.client.forget();
                     _credential = null;
                     _message =
                         'Forgot connection locally. Revoke this device on Desktop as well.';
@@ -158,8 +170,7 @@ class _DesktopConnectionScreenState extends State<DesktopConnectionScreen> {
       ],
       const SizedBox(height: 20),
       const Text(
-        'Library transfer is not enabled in this version. '
-        'Pairing does not grant access to the Desktop Library.',
+        'Selective protected-copy transfer is enabled. Pairing alone never exposes the Desktop Library: only items explicitly authorized for this device appear in Mobile, and nothing downloads automatically.',
       ),
     ]),
   );
