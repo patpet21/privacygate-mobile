@@ -9,6 +9,7 @@ import '../domain/privacy_finding.dart';
 import 'desktop_link_credential_store.dart';
 import 'desktop_link_models.dart';
 import 'desktop_link_status.dart';
+import 'desktop_remote_relay_client.dart';
 
 class DesktopLinkProtocolException implements Exception {
   const DesktopLinkProtocolException(this.message);
@@ -21,6 +22,8 @@ class DesktopLinkClient {
   DesktopLinkClient(this.credentials);
 
   final DesktopLinkCredentialStore credentials;
+  final DesktopRemoteRelayClient _remoteRelay = const DesktopRemoteRelayClient();
+
   // Explicit, session-scoped consent. Pairing alone never sends documents.
   bool analysisEnabled = false;
   DateTime? _unavailableUntil;
@@ -46,12 +49,13 @@ class DesktopLinkClient {
   }
 
   Future<bool> checkConnection() async {
-    final credential = await credentials.load();
+    var credential = await credentials.load();
     if (credential == null) {
       DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
       return false;
     }
     DesktopLinkPresence.set(DesktopLinkStatus.checking);
+
     try {
       final response = await _postJson(
         endpoint: credential.endpoint,
@@ -62,22 +66,65 @@ class DesktopLinkClient {
         method: 'GET',
       );
       final paired = response['paired'] == true;
-      if (paired) {
-        final serverName = response['client_name'];
-        if (serverName is String &&
-            serverName.trim().isNotEmpty &&
-            serverName != credential.clientName) {
-          await credentials.save(_renamedCredential(credential, serverName));
-        }
+      if (!paired) {
+        DesktopLinkPresence.set(DesktopLinkStatus.offline);
+        return false;
       }
-      DesktopLinkPresence.set(
-        paired ? DesktopLinkStatus.connected : DesktopLinkStatus.offline,
-      );
-      return paired;
-    } catch (_) {
-      DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      rethrow;
+      credential = await _applyStatusUpdates(credential, response);
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedLocal);
+      return true;
+    } on SocketException catch (_) {
+      return _checkRemote(credential);
+    } on TimeoutException catch (_) {
+      return _checkRemote(credential);
+    } on HandshakeException catch (_) {
+      return _checkRemote(credential);
     }
+  }
+
+  Future<bool> _checkRemote(DesktopLinkCredential credential) async {
+    if (!credential.hasRemoteRelay) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      return false;
+    }
+    try {
+      final response = await _remoteRelay.requestJson(
+        credential: credential,
+        method: 'GET',
+        path: '/v1/mobile/status',
+        body: const {},
+      );
+      final paired = response['paired'] == true;
+      if (!paired) {
+        DesktopLinkPresence.set(DesktopLinkStatus.offline);
+        return false;
+      }
+      await _applyStatusUpdates(credential, response);
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedRemote);
+      return true;
+    } on DesktopRemoteRelayException {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      return false;
+    }
+  }
+
+  Future<DesktopLinkCredential> _applyStatusUpdates(
+    DesktopLinkCredential credential,
+    Map<String, Object?> response,
+  ) async {
+    var updated = credential;
+    final serverName = response['client_name'];
+    if (serverName is String &&
+        serverName.trim().isNotEmpty &&
+        serverName != updated.clientName) {
+      updated = updated.copyWith(clientName: serverName.trim());
+    }
+    final remoteRaw = response['remote_relay'];
+    if (remoteRaw is Map && remoteRaw.isNotEmpty) {
+      updated = updated.withRemoteRelay(Map<String, Object?>.from(remoteRaw));
+    }
+    if (!_sameCredential(updated, credential)) await credentials.save(updated);
+    return updated;
   }
 
   Future<DesktopLinkCredential> renameDevice(String newName) async {
@@ -96,29 +143,21 @@ class DesktopLinkClient {
       );
     }
     DesktopLinkPresence.set(DesktopLinkStatus.checking);
-    try {
-      final response = await _postJson(
-        endpoint: credential.endpoint,
-        path: '/v1/mobile/device',
-        pinnedCertificatePem: credential.certificatePem,
-        bearerToken: credential.mobileToken,
-        body: {'client_name': normalized},
-        method: 'PATCH',
+    final response = await _requestWithFallback(
+      credential: credential,
+      path: '/v1/mobile/device',
+      body: {'client_name': normalized},
+      method: 'PATCH',
+    );
+    final serverName = response['client_name'];
+    if (serverName is! String || serverName.trim().isEmpty) {
+      throw const DesktopLinkProtocolException(
+        'Desktop returned an invalid device name.',
       );
-      final serverName = response['client_name'];
-      if (serverName is! String || serverName.trim().isEmpty) {
-        throw const DesktopLinkProtocolException(
-          'Desktop returned an invalid device name.',
-        );
-      }
-      final updated = _renamedCredential(credential, serverName.trim());
-      await credentials.save(updated);
-      DesktopLinkPresence.set(DesktopLinkStatus.connected);
-      return updated;
-    } catch (_) {
-      DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      rethrow;
     }
+    final updated = credential.copyWith(clientName: serverName.trim());
+    await credentials.save(updated);
+    return updated;
   }
 
   Future<void> removeDevice() async {
@@ -128,25 +167,18 @@ class DesktopLinkClient {
       return;
     }
     DesktopLinkPresence.set(DesktopLinkStatus.checking);
-    try {
-      final response = await _postJson(
-        endpoint: credential.endpoint,
-        path: '/v1/mobile/device',
-        pinnedCertificatePem: credential.certificatePem,
-        bearerToken: credential.mobileToken,
-        body: const {},
-        method: 'DELETE',
+    final response = await _requestWithFallback(
+      credential: credential,
+      path: '/v1/mobile/device',
+      body: const {},
+      method: 'DELETE',
+    );
+    if (response['removed'] != true) {
+      throw const DesktopLinkProtocolException(
+        'Desktop did not remove this paired device.',
       );
-      if (response['removed'] != true) {
-        throw const DesktopLinkProtocolException(
-          'Desktop did not remove this paired device.',
-        );
-      }
-      await forget();
-    } catch (_) {
-      DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      rethrow;
     }
+    await forget();
   }
 
   Future<void> forget() async {
@@ -195,9 +227,9 @@ class DesktopLinkClient {
         );
       }
 
-      final tokenValue = response['mobile_token'];
-      String? token = tokenValue is String ? tokenValue : null;
-      if (token == null || token.isEmpty) {
+      var approval = response;
+      var token = response['mobile_token'];
+      if (token is! String || token.isEmpty) {
         final approvalRequired = response['approval_required'] == true;
         final requestId = response['pairing_request_id'];
         if (!approvalRequired || requestId is! String || requestId.isEmpty) {
@@ -205,14 +237,20 @@ class DesktopLinkClient {
             'Desktop did not provide a credential or an approval request.',
           );
         }
-        token = await _waitForDesktopApproval(
+        approval = await _waitForDesktopApproval(
           endpoint: endpoint,
           requestId: requestId,
           bundle: bundle,
         );
+        token = approval['mobile_token'];
+      }
+      if (token is! String || token.isEmpty) {
+        throw const DesktopLinkProtocolException(
+          'Desktop approved pairing but returned no credential.',
+        );
       }
 
-      final credential = DesktopLinkCredential(
+      var credential = DesktopLinkCredential(
         endpoint: endpoint,
         mobileToken: token,
         certificatePem: bundle.certificatePem,
@@ -220,16 +258,22 @@ class DesktopLinkClient {
         clientId: id,
         clientName: clientName,
       );
+      final remoteRaw = approval['remote_relay'];
+      if (remoteRaw is Map && remoteRaw.isNotEmpty) {
+        credential = credential.withRemoteRelay(
+          Map<String, Object?>.from(remoteRaw),
+        );
+      }
       await credentials.save(credential);
       _unavailableUntil = null;
-      DesktopLinkPresence.set(DesktopLinkStatus.connected);
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedLocal);
       return credential;
     }
     DesktopLinkPresence.set(DesktopLinkStatus.offline);
     throw DesktopLinkProtocolException('Could not contact Desktop for pairing: $lastError');
   }
 
-  Future<String> _waitForDesktopApproval({
+  Future<Map<String, Object?>> _waitForDesktopApproval({
     required String endpoint,
     required String requestId,
     required DesktopLinkPairingBundle bundle,
@@ -260,7 +304,7 @@ class DesktopLinkClient {
               'Desktop approved pairing but returned no credential.',
             );
           }
-          return token;
+          return response;
         }
         if (status == 'denied') {
           throw const DesktopLinkProtocolException(
@@ -298,11 +342,9 @@ class DesktopLinkClient {
       throw const DetectionEngineUnavailableException('No paired Desktop is configured.');
     }
     try {
-      final response = await _postJson(
-        endpoint: credential.endpoint,
+      final response = await _requestWithFallback(
+        credential: credential,
         path: '/v1/mobile/analyze',
-        pinnedCertificatePem: credential.certificatePem,
-        bearerToken: credential.mobileToken,
         body: {
           'text': request.text,
           'profile_key': request.profileKey,
@@ -359,7 +401,6 @@ class DesktopLinkClient {
         );
       }
       _unavailableUntil = null;
-      DesktopLinkPresence.set(DesktopLinkStatus.connected);
       return List.unmodifiable(findings);
     } on SocketException catch (error) {
       _markUnavailable();
@@ -373,11 +414,90 @@ class DesktopLinkClient {
       _markUnavailable();
       DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DetectionEngineUnavailableException('Desktop timed out: $error');
+    } on DesktopRemoteRelayException catch (error) {
+      _markUnavailable();
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      throw DetectionEngineUnavailableException(error.message);
     }
   }
 
   void _markUnavailable() {
     _unavailableUntil = DateTime.now().add(const Duration(seconds: 5));
+  }
+
+  Future<Map<String, Object?>> _requestWithFallback({
+    required DesktopLinkCredential credential,
+    required String path,
+    required Map<String, Object?> body,
+    String method = 'POST',
+    Map<String, String>? queryParameters,
+  }) async {
+    try {
+      final response = await _postJson(
+        endpoint: credential.endpoint,
+        path: path,
+        pinnedCertificatePem: credential.certificatePem,
+        bearerToken: credential.mobileToken,
+        body: body,
+        method: method,
+        queryParameters: queryParameters,
+      );
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedLocal);
+      return response;
+    } on SocketException {
+      return _remoteFallback(
+        credential: credential,
+        path: path,
+        body: body,
+        method: method,
+        queryParameters: queryParameters,
+      );
+    } on TimeoutException {
+      return _remoteFallback(
+        credential: credential,
+        path: path,
+        body: body,
+        method: method,
+        queryParameters: queryParameters,
+      );
+    } on HandshakeException {
+      return _remoteFallback(
+        credential: credential,
+        path: path,
+        body: body,
+        method: method,
+        queryParameters: queryParameters,
+      );
+    }
+  }
+
+  Future<Map<String, Object?>> _remoteFallback({
+    required DesktopLinkCredential credential,
+    required String path,
+    required Map<String, Object?> body,
+    required String method,
+    Map<String, String>? queryParameters,
+  }) async {
+    if (!credential.hasRemoteRelay) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      throw const DesktopRemoteRelayException(
+        'Desktop is outside the local network and Remote Device Trust is not provisioned yet.',
+      );
+    }
+    try {
+      final response = await _remoteRelay.requestJson(
+        credential: credential,
+        method: method,
+        path: path,
+        body: body,
+        queryParameters: queryParameters,
+      );
+      DesktopLinkPresence.set(DesktopLinkStatus.connectedRemote);
+      return response;
+    } catch (_) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      rethrow;
+    }
   }
 
   Future<Map<String, Object?>> _postJson({
@@ -443,18 +563,20 @@ class DesktopLinkClient {
     }
   }
 
-  static DesktopLinkCredential _renamedCredential(
-    DesktopLinkCredential credential,
-    String name,
+  static bool _sameCredential(
+    DesktopLinkCredential left,
+    DesktopLinkCredential right,
   ) =>
-      DesktopLinkCredential(
-        endpoint: credential.endpoint,
-        mobileToken: credential.mobileToken,
-        certificatePem: credential.certificatePem,
-        detectionPackSha256: credential.detectionPackSha256,
-        clientId: credential.clientId,
-        clientName: name,
-      );
+      left.endpoint == right.endpoint &&
+      left.mobileToken == right.mobileToken &&
+      left.certificatePem == right.certificatePem &&
+      left.detectionPackSha256 == right.detectionPackSha256 &&
+      left.clientId == right.clientId &&
+      left.clientName == right.clientName &&
+      left.relayUrl == right.relayUrl &&
+      left.relayRoomId == right.relayRoomId &&
+      left.relayToken == right.relayToken &&
+      left.remoteSecret == right.remoteSecret;
 
   static String _normalizePem(String value) => value.replaceAll('\r\n', '\n').trim();
 
