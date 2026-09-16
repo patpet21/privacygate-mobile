@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../desktop_link/desktop_protected_copy.dart';
 import '../domain/library_document.dart';
 import '../domain/protection_result.dart';
 import '../domain/replacement_mapping.dart';
@@ -92,6 +93,47 @@ class ProtectedLibraryService extends ChangeNotifier {
       rethrow;
     }
 
+    notifyListeners();
+    return document;
+  }
+
+  Future<LibraryDocument> saveDesktopProtectedCopy(
+    DesktopProtectedCopyDocument copy,
+  ) async {
+    if (copy.hasMapping) {
+      throw StateError('Desktop protected copies must never contain restore mappings.');
+    }
+    if (copy.protectedText.trim().isEmpty) {
+      throw ArgumentError('Protected text cannot be empty');
+    }
+
+    final now = DateTime.now().toUtc();
+    LibraryDocument? existing;
+    try {
+      existing = await _library.get(copy.localDocumentId);
+    } on StateError {
+      existing = null;
+    }
+
+    final document = LibraryDocument(
+      documentId: copy.localDocumentId,
+      title: copy.title,
+      sourceKind: 'desktop',
+      sourceName: 'Trusted Desktop',
+      profileKey: copy.profileKey,
+      protectedText: copy.protectedText,
+      findingsCount: copy.findingsCount,
+      entityTypes: List<String>.unmodifiable(copy.entityTypes),
+      labels: List<String>.unmodifiable(copy.labels),
+      replacementMode: 'protected_copy',
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      hasMapping: false,
+      favorite: existing?.favorite ?? copy.favorite,
+      mcpShared: false,
+    );
+
+    await _library.save(document);
     notifyListeners();
     return document;
   }
