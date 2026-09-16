@@ -4,6 +4,8 @@
 <dict>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to your explicitly paired PrivacyGate Desktop for encrypted, optional document analysis.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Scan a temporary PrivacyGate Desktop pairing QR code.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
