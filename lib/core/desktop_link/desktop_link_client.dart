@@ -8,6 +8,7 @@ import '../detection/detection_engine_router.dart';
 import '../domain/privacy_finding.dart';
 import 'desktop_link_credential_store.dart';
 import 'desktop_link_models.dart';
+import 'desktop_link_status.dart';
 
 class DesktopLinkProtocolException implements Exception {
   const DesktopLinkProtocolException(this.message);
@@ -31,18 +32,51 @@ class DesktopLinkClient {
     return credentials.contains();
   }
 
+  Future<DesktopLinkStatus> refreshConnectionState() async {
+    if (!await credentials.contains()) {
+      DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
+      return DesktopLinkStatus.unpaired;
+    }
+    try {
+      await checkConnection();
+    } catch (_) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+    }
+    return DesktopLinkPresence.value;
+  }
+
   Future<bool> checkConnection() async {
     final credential = await credentials.load();
-    if (credential == null) return false;
-    final response = await _postJson(
-      endpoint: credential.endpoint,
-      path: '/v1/mobile/status',
-      pinnedCertificatePem: credential.certificatePem,
-      bearerToken: credential.mobileToken,
-      body: const {},
-      method: 'GET',
-    );
-    return response['paired'] == true;
+    if (credential == null) {
+      DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
+      return false;
+    }
+    DesktopLinkPresence.set(DesktopLinkStatus.checking);
+    try {
+      final response = await _postJson(
+        endpoint: credential.endpoint,
+        path: '/v1/mobile/status',
+        pinnedCertificatePem: credential.certificatePem,
+        bearerToken: credential.mobileToken,
+        body: const {},
+        method: 'GET',
+      );
+      final paired = response['paired'] == true;
+      DesktopLinkPresence.set(
+        paired ? DesktopLinkStatus.connected : DesktopLinkStatus.offline,
+      );
+      return paired;
+    } catch (_) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      rethrow;
+    }
+  }
+
+  Future<void> forget() async {
+    analysisEnabled = false;
+    _unavailableUntil = null;
+    await credentials.delete();
+    DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
   }
 
   Future<DesktopLinkCredential> pair(
@@ -53,6 +87,7 @@ class DesktopLinkClient {
     if (DateTime.now().toUtc().isAfter(bundle.expiresAt)) {
       throw const DesktopLinkProtocolException('Desktop pairing code has expired.');
     }
+    DesktopLinkPresence.set(DesktopLinkStatus.checking);
     final id = clientId ?? _newClientId();
     Object? lastError;
     for (final endpoint in bundle.endpoints) {
@@ -110,8 +145,10 @@ class DesktopLinkClient {
       );
       await credentials.save(credential);
       _unavailableUntil = null;
+      DesktopLinkPresence.set(DesktopLinkStatus.connected);
       return credential;
     }
+    DesktopLinkPresence.set(DesktopLinkStatus.offline);
     throw DesktopLinkProtocolException('Could not contact Desktop for pairing: $lastError');
   }
 
@@ -171,6 +208,7 @@ class DesktopLinkClient {
       }
       await Future<void>.delayed(const Duration(seconds: 1));
     }
+    DesktopLinkPresence.set(DesktopLinkStatus.offline);
     throw DesktopLinkProtocolException(
       'Desktop approval timed out${lastNetworkError == null ? '' : ': $lastNetworkError'}',
     );
@@ -179,6 +217,7 @@ class DesktopLinkClient {
   Future<List<PrivacyFinding>> analyze(DetectionRequest request) async {
     final credential = await credentials.load();
     if (credential == null) {
+      DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
       throw const DetectionEngineUnavailableException('No paired Desktop is configured.');
     }
     try {
@@ -243,15 +282,19 @@ class DesktopLinkClient {
         );
       }
       _unavailableUntil = null;
+      DesktopLinkPresence.set(DesktopLinkStatus.connected);
       return List.unmodifiable(findings);
     } on SocketException catch (error) {
       _markUnavailable();
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DetectionEngineUnavailableException('Desktop is unreachable: $error');
     } on HandshakeException catch (error) {
       _markUnavailable();
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DetectionEngineUnavailableException('Desktop TLS connection failed: $error');
     } on TimeoutException catch (error) {
       _markUnavailable();
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
       throw DetectionEngineUnavailableException('Desktop timed out: $error');
     }
   }
