@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'desktop_link_credential_store.dart';
+import 'desktop_link_models.dart';
 import 'desktop_link_status.dart';
 import 'desktop_protected_copy.dart';
 import 'desktop_remote_relay_client.dart';
@@ -92,7 +93,7 @@ class DesktopProtectedCopyClient {
   }
 
   Future<Map<String, Object?>> _getRemoteJson(
-    dynamic credential,
+    DesktopLinkCredential credential,
     String path,
   ) async {
     if (!credential.hasRemoteRelay) {
