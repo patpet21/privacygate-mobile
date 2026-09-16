@@ -157,8 +157,13 @@ class LocalLibraryRepository {
       };
 
   static LibraryDocument _fromJson(Map<String, dynamic> raw) {
-    final deletedValue = raw['deletedAt'];
-    if (deletedValue != null && deletedValue is! String) {
+    final deletedRaw = raw['deletedAt'];
+    final String? deletedValue;
+    if (deletedRaw == null) {
+      deletedValue = null;
+    } else if (deletedRaw is String) {
+      deletedValue = deletedRaw;
+    } else {
       throw const LibraryIntegrityException('Library deletedAt is invalid');
     }
     return LibraryDocument(
