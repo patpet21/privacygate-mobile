@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app/mobile_design.dart';
 import '../../core/settings/privacy_gate_settings.dart';
 import 'settings_module_screen.dart';
+import '../../core/desktop_link/desktop_link_client.dart';
+import 'desktop_connection_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({required this.settings, super.key});
+  const SettingsScreen({required this.settings, this.desktopLink, super.key});
+  final DesktopLinkClient? desktopLink;
 
   final PrivacyGateSettings settings;
 
@@ -54,7 +57,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _openModule(SettingsModule.accountDevices),
+                onTap: widget.desktopLink == null ? null : () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => DesktopConnectionScreen(client: widget.desktopLink!)),
+                ),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 2),
                   child: Row(
@@ -67,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Not connected',
+                              'Manage Desktop connection',
                               style: TextStyle(
                                 color: PgColors.navy,
                                 fontWeight: FontWeight.w800,
@@ -76,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Trusted Desktop pairing will enable sync, organization metadata and Desktop-managed services.',
+                              'Pair securely and explicitly enable Desktop-assisted analysis.',
                               style: TextStyle(color: PgColors.textSecondary, height: 1.3),
                             ),
                           ],
@@ -91,10 +96,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.sync_rounded),
-                title: const Text('Sync when desktop is available'),
-                subtitle: const Text('Applies after a trusted Desktop connection exists.'),
-                value: settings.syncWhenDesktopAvailable,
-                onChanged: settings.setSyncWhenDesktopAvailable,
+                title: const Text('Selective Library transfer'),
+                subtitle: const Text('Not available yet. Pairing does not synchronize files.'),
+                value: false,
+                onChanged: null,
               ),
             ],
           ),

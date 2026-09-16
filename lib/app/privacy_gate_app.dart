@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/detection/desktop_rule_detector.dart';
 import '../core/detection/detection_engine.dart';
+import '../core/detection/detection_engine_router.dart';
+import '../core/detection/desktop_link_detection_engine.dart';
+import '../core/desktop_link/desktop_link_client.dart';
+import '../core/desktop_link/desktop_link_credential_store.dart';
 import '../core/domain/library_document.dart';
 import '../core/domain/protection_result.dart';
 import '../core/library/protected_library_service.dart';
@@ -26,6 +30,7 @@ class PrivacyGateApp extends StatefulWidget {
 
 class _PrivacyGateAppState extends State<PrivacyGateApp> {
   late final PrivacyGateSettings _settings;
+  late final DesktopLinkClient _desktopLink;
   late final ProtectionPolicy _protectionPolicy;
   late final ProtectController _protectController;
   Future<ProtectedLibraryService>? _libraryFuture;
@@ -37,9 +42,14 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
   void initState() {
     super.initState();
     _settings = PrivacyGateSettings();
+    _desktopLink = DesktopLinkClient(DesktopLinkCredentialStore());
     _protectionPolicy = ProtectionPolicy();
     _protectController = ProtectController(
-      detector: const DocumentDetectionEngine(DesktopRuleDetector()),
+      detector: DocumentDetectionEngine(DetectionEngineRouter(
+        mobileBasic: const DesktopRuleDetector(),
+        desktop: DesktopLinkDetectionEngine(_desktopLink),
+        desktopAvailable: _desktopLink.canAttempt,
+      )),
       protector: const PrivacyGateProtector(),
       policy: _protectionPolicy,
     );
@@ -225,7 +235,7 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
               onOpenRestoreDocument: _openLibraryRestore,
             ),
             const ActivityScreen(),
-            SettingsScreen(settings: _settings),
+            SettingsScreen(settings: _settings, desktopLink: _desktopLink),
           ],
         ),
         floatingActionButton: canSave

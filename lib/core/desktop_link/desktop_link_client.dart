@@ -20,12 +20,29 @@ class DesktopLinkClient {
   DesktopLinkClient(this.credentials);
 
   final DesktopLinkCredentialStore credentials;
+  // Explicit, session-scoped consent. Pairing alone never sends documents.
+  bool analysisEnabled = false;
   DateTime? _unavailableUntil;
 
   Future<bool> canAttempt() async {
+    if (!analysisEnabled) return false;
     final blockedUntil = _unavailableUntil;
     if (blockedUntil != null && DateTime.now().isBefore(blockedUntil)) return false;
     return credentials.contains();
+  }
+
+  Future<bool> checkConnection() async {
+    final credential = await credentials.load();
+    if (credential == null) return false;
+    final response = await _postJson(
+      endpoint: credential.endpoint,
+      path: '/v1/mobile/status',
+      pinnedCertificatePem: credential.certificatePem,
+      bearerToken: credential.mobileToken,
+      body: const {},
+      method: 'GET',
+    );
+    return response['paired'] == true;
   }
 
   Future<DesktopLinkCredential> pair(
@@ -107,6 +124,11 @@ class DesktopLinkClient {
       if (rawFindings is! List) {
         throw const DesktopLinkProtocolException('Desktop analyze response has no findings array.');
       }
+      // Desktop uses Unicode code-point offsets; Dart strings use UTF-16.
+      final offsets = <int>[0];
+      for (final rune in request.text.runes) {
+        offsets.add(offsets.last + (rune > 0xffff ? 2 : 1));
+      }
       final findings = <PrivacyFinding>[];
       for (var index = 0; index < rawFindings.length; index += 1) {
         final item = rawFindings[index];
@@ -114,15 +136,18 @@ class DesktopLinkClient {
           throw const DesktopLinkProtocolException('Desktop finding is invalid.');
         }
         final entityType = item['entity_type'];
-        final start = item['start'];
-        final end = item['end'];
+        final rawStart = item['start'];
+        final rawEnd = item['end'];
         final score = item['score'];
-        if (entityType is! String || start is! int || end is! int || score is! num) {
+        if (entityType is! String || rawStart is! int || rawEnd is! int || score is! num) {
           throw const DesktopLinkProtocolException('Desktop finding fields are invalid.');
         }
-        if (start < 0 || end <= start || end > request.text.length) {
+        if (rawStart < 0 || rawEnd <= rawStart || rawEnd >= offsets.length ||
+            !score.isFinite || score < 0 || score > 1) {
           throw const DesktopLinkProtocolException('Desktop finding range is invalid.');
         }
+        final start = offsets[rawStart];
+        final end = offsets[rawEnd];
         findings.add(
           PrivacyFinding(
             findingId: 'desktop-$start-$end-$index',
@@ -160,30 +185,37 @@ class DesktopLinkClient {
     required String pinnedCertificatePem,
     required Map<String, Object?> body,
     String? bearerToken,
+    String method = 'POST',
   }) async {
     final base = Uri.parse(endpoint);
     if (base.scheme != 'https' || base.host.isEmpty || !base.hasPort) {
       throw const DesktopLinkProtocolException('Desktop endpoint must be HTTPS with an explicit port.');
     }
     final expectedPem = _normalizePem(pinnedCertificatePem);
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+    // No system roots: never send the token/text to a publicly trusted impostor.
+    final securityContext = SecurityContext(withTrustedRoots: false)
+      ..setTrustedCertificatesBytes(utf8.encode(pinnedCertificatePem));
+    final client = HttpClient(context: securityContext)
+      ..connectionTimeout = const Duration(seconds: 2);
     client.badCertificateCallback = (certificate, host, port) =>
         host == base.host && port == base.port && _normalizePem(certificate.pem) == expectedPem;
     try {
       final uri = base.replace(path: path, query: null, fragment: null);
-      final request = await client.postUrl(uri).timeout(const Duration(seconds: 3));
+      final request = await client.openUrl(method, uri).timeout(const Duration(seconds: 3));
+      request.followRedirects = false;
       request.headers.contentType = ContentType.json;
       request.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
       if (bearerToken != null) {
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
       }
-      request.write(jsonEncode(body));
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      if (method != 'GET') request.write(jsonEncode(body));
+      final response = await request.close().timeout(const Duration(seconds: 60));
       final certificate = response.certificate;
       if (certificate == null || _normalizePem(certificate.pem) != expectedPem) {
         throw HandshakeException('Desktop certificate pin did not match pairing data.');
       }
-      final text = await response.transform(utf8.decoder).join();
+      final text = await response.transform(utf8.decoder).join()
+          .timeout(const Duration(seconds: 30));
       final decoded = jsonDecode(text);
       if (decoded is! Map) {
         throw const DesktopLinkProtocolException('Desktop returned invalid JSON.');
