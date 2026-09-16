@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/desktop_link/desktop_link_status.dart';
+
 class PgColors {
   const PgColors._();
 
@@ -41,14 +43,36 @@ class PgPage extends StatelessWidget {
 
 class PgHeader extends StatelessWidget {
   const PgHeader({
-    this.connected = false,
+    this.connected,
     super.key,
   });
 
-  final bool connected;
+  /// Optional explicit override retained for screens that need to force a
+  /// preview state. Normal app screens leave this null and use the shared
+  /// Desktop reachability monitor.
+  final bool? connected;
 
   @override
   Widget build(BuildContext context) {
+    if (connected != null) {
+      return _buildHeader(
+        connected! ? DesktopLinkStatus.connected : DesktopLinkStatus.unpaired,
+      );
+    }
+    return ValueListenableBuilder<DesktopLinkStatus>(
+      valueListenable: DesktopLinkPresence.notifier,
+      builder: (context, status, _) => _buildHeader(status),
+    );
+  }
+
+  Widget _buildHeader(DesktopLinkStatus status) {
+    final (dotColor, label) = switch (status) {
+      DesktopLinkStatus.connected => (PgColors.green, 'Desktop connected'),
+      DesktopLinkStatus.checking => (PgColors.blue, 'Checking Desktop…'),
+      DesktopLinkStatus.offline => (PgColors.orange, 'Desktop paired · offline'),
+      DesktopLinkStatus.unpaired => (const Color(0xFF98A2B6), 'Desktop not paired'),
+    };
+
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 24),
       child: Row(
@@ -94,14 +118,14 @@ class PgHeader extends StatelessWidget {
                       width: 9,
                       height: 9,
                       decoration: BoxDecoration(
-                        color: connected ? PgColors.green : const Color(0xFF98A2B6),
+                        color: dotColor,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        connected ? 'Desktop connected' : 'Desktop not connected',
+                        label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
