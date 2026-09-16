@@ -7,7 +7,7 @@ import 'desktop_link_models.dart';
 
 class DesktopLinkCredentialStore {
   DesktopLinkCredentialStore({VaultCryptor? cryptor})
-      : _cryptor = cryptor ?? const PlatformVaultCryptor();
+      : _cryptor = cryptor ?? PlatformVaultCryptor();
 
   static const _format = 'privacygate-mobile-desktop-link-v1';
   static final List<int> _aad = utf8.encode(_format);
