@@ -1,23 +1,33 @@
 import 'package:flutter/material.dart';
 
 import '../../app/mobile_design.dart';
+import '../../core/mobile_link/desktop_connection.dart';
 import '../../core/settings/privacy_gate_settings.dart';
+import 'desktop_connection_screen.dart';
 import 'settings_module_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({required this.settings, super.key});
+  const SettingsScreen({
+    required this.settings,
+    required this.connectionStore,
+    super.key,
+  });
 
   final PrivacyGateSettings settings;
+  final DesktopConnectionStore connectionStore;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  DesktopConnection? _connection;
+
   @override
   void initState() {
     super.initState();
     widget.settings.addListener(_refresh);
+    _loadConnection();
   }
 
   @override
@@ -28,17 +38,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _refresh() => setState(() {});
 
+  Future<void> _loadConnection() async {
+    final connection = await widget.connectionStore.load();
+    if (!mounted) return;
+    setState(() => _connection = connection);
+  }
+
+  Future<void> _openDesktopConnection() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DesktopConnectionScreen(store: widget.connectionStore),
+      ),
+    );
+    await _loadConnection();
+  }
+
   void _openModule(SettingsModule module) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SettingsModuleScreen(module: module),
-      ),
+      MaterialPageRoute<void>(builder: (_) => SettingsModuleScreen(module: module)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
+    final connected = _connection != null;
     return PgPage(
       children: [
         const PgHeader(),
@@ -54,35 +78,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _openModule(SettingsModule.accountDevices),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 2),
+                onTap: _openDesktopConnection,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      PgIconBox(icon: Icons.laptop_mac_outlined),
-                      SizedBox(width: 12),
+                      PgIconBox(
+                        icon: connected ? Icons.verified_rounded : Icons.laptop_mac_outlined,
+                        foreground: connected ? PgColors.green : PgColors.blue,
+                        background: connected ? PgColors.greenSoft : PgColors.blueSoft,
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Not connected',
-                              style: TextStyle(
+                              connected ? 'Trusted Desktop paired' : 'Not connected',
+                              style: const TextStyle(
                                 color: PgColors.navy,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 17,
                               ),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
-                              'Trusted Desktop pairing will enable sync, organization metadata and Desktop-managed services.',
-                              style: TextStyle(color: PgColors.textSecondary, height: 1.3),
+                              connected
+                                  ? 'Tap to review or forget this Desktop connection.'
+                                  : 'Pair a trusted Desktop to receive explicitly authorized protected copies.',
+                              style: const TextStyle(color: PgColors.textSecondary, height: 1.3),
                             ),
                           ],
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded),
+                      const Icon(Icons.chevron_right_rounded),
                     ],
                   ),
                 ),
@@ -92,7 +122,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.sync_rounded),
                 title: const Text('Sync when desktop is available'),
-                subtitle: const Text('Applies after a trusted Desktop connection exists.'),
+                subtitle: const Text(
+                  'Protected-copy grants are listed automatically only when you request a refresh; files are never saved without confirmation.',
+                ),
                 value: settings.syncWhenDesktopAvailable,
                 onChanged: settings.setSyncWhenDesktopAvailable,
               ),
@@ -119,11 +151,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Text(
                           'Mobile Vault',
-                          style: TextStyle(
-                            color: PgColors.navy,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
+                          style: TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800, fontSize: 18),
                         ),
                         Text(
                           'Offline capacity, cleanup and post-sync retention on this device.',
@@ -151,10 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'Custom limit: ${_storageLabel(settings.customVaultMegabytes)}',
-                  style: const TextStyle(
-                    color: PgColors.navy,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: const TextStyle(color: PgColors.navy, fontWeight: FontWeight.w700),
                 ),
                 Slider(
                   min: 100,
@@ -168,9 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               DropdownButtonFormField<VaultRetentionPolicy>(
                 key: ValueKey('retention-${settings.retention.name}'),
                 initialValue: settings.retention,
-                decoration: const InputDecoration(
-                  labelText: 'Automatic cleanup',
-                ),
+                decoration: const InputDecoration(labelText: 'Automatic cleanup'),
                 items: [
                   for (final policy in VaultRetentionPolicy.values)
                     DropdownMenuItem(value: policy, child: Text(policy.label)),
@@ -211,14 +234,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Text(
                           'Restore security',
-                          style: TextStyle(
-                            color: PgColors.navy,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
+                          style: TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800, fontSize: 18),
                         ),
                         Text(
-                          'Keep restore mappings local and protect restore with device authentication.',
+                          'Protected-copy transfers never include a restore mapping.',
                           style: TextStyle(color: PgColors.textSecondary, height: 1.3),
                         ),
                       ],
@@ -230,23 +249,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Require biometrics/device auth for restore'),
-                subtitle: const Text('Native enforcement will use Android/iOS secure storage.'),
+                subtitle: const Text('Applies to future full-session restore material, not protected-only copies.'),
                 value: settings.requireDeviceAuthForRestore,
                 onChanged: settings.setRequireDeviceAuthForRestore,
-              ),
-              const Divider(height: 24),
-              const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.offline_pin_outlined, color: PgColors.green),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Encrypted offline persistence becomes active after the native Keystore/Keychain adapter is implemented.',
-                      style: TextStyle(color: PgColors.textSecondary, height: 1.3),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -254,11 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 22),
         const Text(
           'PrivacyGate controls',
-          style: TextStyle(
-            color: PgColors.navy,
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(color: PgColors.navy, fontSize: 21, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         const Text(
@@ -268,11 +269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 14),
         _SettingsGroup(
           title: 'Core services',
-          modules: const [
-            SettingsModule.accountDevices,
-            SettingsModule.workspaces,
-            SettingsModule.services,
-          ],
+          modules: const [SettingsModule.accountDevices, SettingsModule.workspaces, SettingsModule.services],
           onOpen: _openModule,
         ),
         const SizedBox(height: 12),
@@ -289,10 +286,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 12),
         _SettingsGroup(
           title: 'Organization',
-          modules: const [
-            SettingsModule.team,
-            SettingsModule.devices,
-          ],
+          modules: const [SettingsModule.team, SettingsModule.devices],
           onOpen: _openModule,
         ),
         const SizedBox(height: 12),
@@ -311,7 +305,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Mobile parity preserves Desktop logic and privacy boundaries, but uses lists, drill-down pages and vertical cards so controls remain readable on phone-size screens.',
+                  'Mobile parity preserves Desktop logic and privacy boundaries, while protected-copy content and pairing credentials stay in platform secure storage.',
                   style: TextStyle(color: PgColors.textSecondary, height: 1.35),
                 ),
               ),
@@ -332,11 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({
-    required this.title,
-    required this.modules,
-    required this.onOpen,
-  });
+  const _SettingsGroup({required this.title, required this.modules, required this.onOpen});
 
   final String title;
   final List<SettingsModule> modules;
@@ -362,44 +352,26 @@ class _SettingsGroup extends StatelessWidget {
             ),
           ),
           for (var index = 0; index < modules.length; index++) ...[
-            _SettingsModuleTile(
-              module: modules[index],
+            ListTile(
               onTap: () => onOpen(modules[index]),
+              leading: PgIconBox(icon: modules[index].icon, size: 38),
+              title: Text(
+                modules[index].title,
+                style: const TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800),
+              ),
+              subtitle: Text(
+                modules[index].subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: PgColors.textSecondary, height: 1.25),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
             ),
             if (index != modules.length - 1)
               const Divider(height: 1, indent: 62, endIndent: 16),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _SettingsModuleTile extends StatelessWidget {
-  const _SettingsModuleTile({required this.module, required this.onTap});
-
-  final SettingsModule module;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      leading: PgIconBox(icon: module.icon, size: 38),
-      title: Text(
-        module.title,
-        style: const TextStyle(
-          color: PgColors.navy,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      subtitle: Text(
-        module.subtitle,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: PgColors.textSecondary, height: 1.25),
-      ),
-      trailing: const Icon(Icons.chevron_right_rounded),
     );
   }
 }
