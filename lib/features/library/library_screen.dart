@@ -132,7 +132,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  Future<void> _refreshDesktopCopies() async {
+  Future<void> _refreshDesktopTransfers() async {
     if (_desktopBusy) return;
     final paired = await _desktopCopies.hasCredential();
     if (!mounted) return;
@@ -141,7 +141,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _desktopPaired = false;
         _desktopGrants = const [];
         _desktopMessage =
-            'Pair a trusted Desktop in Settings before refreshing protected copies.';
+            'Pair a trusted Desktop in Settings before refreshing Desktop items.';
       });
       return;
     }
@@ -154,15 +154,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
     try {
       final grants = await _desktopCopies.listGrants();
       if (!mounted) return;
+      final fullCount = grants.where((grant) => grant.isFullOfflineSession).length;
+      final protectedCount = grants.length - fullCount;
       setState(() {
         _desktopGrants = grants;
-        _desktopMessage = grants.isEmpty
-            ? 'No protected copies are authorized for this device.'
-            : '${grants.length} protected ${grants.length == 1 ? 'copy is' : 'copies are'} available from Desktop.';
+        if (grants.isEmpty) {
+          _desktopMessage = 'No Library items are authorized for this device.';
+        } else {
+          final parts = <String>[];
+          if (protectedCount > 0) {
+            parts.add('$protectedCount protected ${protectedCount == 1 ? 'copy' : 'copies'}');
+          }
+          if (fullCount > 0) {
+            parts.add('$fullCount full offline ${fullCount == 1 ? 'session' : 'sessions'}');
+          }
+          _desktopMessage = '${parts.join(' · ')} available from Desktop.';
+        }
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() => _desktopMessage = error.toString());
+      setState(() {
+        _desktopMessage =
+            'Desktop is offline or unreachable. Open PrivacyGate Desktop and make sure Device Trust shows Online.';
+      });
     } finally {
       if (mounted) setState(() => _desktopBusy = false);
     }
@@ -182,28 +196,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
         service.addListener(_serviceChanged);
       }
       final copy = await _desktopCopies.fetch(grant.grantId);
-      if (copy.documentId != grant.documentId) {
+      if (copy.documentId != grant.documentId || copy.mode != grant.mode) {
         throw const DesktopProtectedCopyException(
-          'Desktop returned a different document than the authorized grant.',
+          'Desktop returned a different item than the authorized grant.',
         );
       }
-      final document = await service.saveDesktopProtectedCopy(copy);
+      final document = await service.saveDesktopTransfer(copy);
       await _refreshDocuments(showLoading: false);
       if (!mounted) return;
       setState(() {
-        _desktopMessage =
-            '${document.title} saved locally as a protected-only copy. No restore mapping was transferred.';
+        _desktopMessage = copy.isFullOfflineSession
+            ? '${document.title} saved for offline Restore. The Restore mapping is stored separately in the encrypted Mobile Vault.'
+            : '${document.title} saved locally as a protected-only copy. No Restore mapping was transferred.';
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _desktopMessage = error.toString());
+      final message = error.toString();
+      setState(() {
+        _desktopMessage = message
+            .replaceFirst('DesktopProtectedCopyException: ', '')
+            .replaceFirst('StateError: ', '');
+      });
     } finally {
       if (mounted) setState(() => _savingGrantId = null);
     }
   }
 
-  bool _isDesktopGrantSaved(DesktopProtectedCopyGrant grant) => _documents
-      .any((document) => document.documentId == grant.localDocumentId);
+  LibraryDocument? _localDocumentFor(DesktopProtectedCopyGrant grant) {
+    for (final document in _documents) {
+      if (document.documentId == grant.localDocumentId) return document;
+    }
+    return null;
+  }
+
+  bool _isDesktopGrantSatisfied(DesktopProtectedCopyGrant grant) {
+    final local = _localDocumentFor(grant);
+    if (local == null) return false;
+    return !grant.hasMapping || local.hasMapping;
+  }
+
+  String _grantActionLabel(DesktopProtectedCopyGrant grant) {
+    final local = _localDocumentFor(grant);
+    if (_savingGrantId == grant.grantId) return 'Saving…';
+    if (grant.hasMapping && (local == null || !local.hasMapping)) {
+      return local == null ? 'Save with offline Restore' : 'Enable offline Restore';
+    }
+    return local == null ? 'Save to Library' : 'Update local copy';
+  }
 
   Future<void> _toggleFavorite(LibraryDocument document) async {
     final service = _service;
@@ -265,7 +304,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const PgHeader(),
         const PgTitle(
           title: 'Library',
-          subtitle: 'Protected copies saved locally on this device.',
+          subtitle: 'Protected copies and restorable offline sessions saved locally on this device.',
         ),
         _LibraryFilterBar(
           selected: _filter,
@@ -278,7 +317,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             children: [
               const PgSectionHeader(title: 'Mobile Vault'),
               const Text(
-                'Protected copies and encrypted restore mappings stored on this device.',
+                'Protected content stays in the Library. Restore mappings are stored separately in the encrypted device Vault.',
                 style: TextStyle(color: PgColors.textSecondary),
               ),
               const SizedBox(height: 16),
@@ -361,8 +400,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         const SizedBox(height: 3),
                         Text(
                           _desktopPaired
-                              ? 'Refresh lists only copies explicitly authorized for this device. Nothing is downloaded automatically.'
-                              : 'Pair a trusted Desktop in Settings to receive explicitly authorized protected copies.',
+                              ? 'Refresh shows only Library items explicitly authorized for this device. Nothing downloads automatically.'
+                              : 'Pair a trusted Desktop in Settings to receive explicitly authorized Library items.',
                           style: const TextStyle(color: PgColors.textSecondary),
                         ),
                       ],
@@ -373,14 +412,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
               final refreshButton = OutlinedButton.icon(
                 onPressed: !_desktopPaired || _desktopBusy
                     ? null
-                    : _refreshDesktopCopies,
+                    : _refreshDesktopTransfers,
                 icon: _desktopBusy
                     ? const SizedBox.square(
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh_rounded),
-                label: const Text('Refresh protected copies'),
+                label: const Text('Refresh Desktop items'),
               );
 
               if (compact) {
@@ -393,7 +432,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ],
                 );
               }
-
               return Row(
                 children: [
                   Expanded(child: status),
@@ -420,7 +458,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 const PgSectionHeader(title: 'Available from Desktop'),
                 const SizedBox(height: 4),
                 const Text(
-                  'These items are authorized for this device. Protected content is transferred only after you choose Save to Library.',
+                  'Protected copies contain no Restore mapping. Full offline sessions add a mapping to the encrypted Mobile Vault only after you explicitly save them.',
                   style: TextStyle(color: PgColors.textSecondary),
                 ),
                 const SizedBox(height: 10),
@@ -429,7 +467,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     index++) ...[
                   _DesktopGrantTile(
                     grant: _desktopGrants[index],
-                    saved: _isDesktopGrantSaved(_desktopGrants[index]),
+                    satisfied: _isDesktopGrantSatisfied(_desktopGrants[index]),
+                    actionLabel: _grantActionLabel(_desktopGrants[index]),
                     saving: _savingGrantId == _desktopGrants[index].grantId,
                     disabled: _savingGrantId != null,
                     onSave: () => _saveDesktopGrant(_desktopGrants[index]),
@@ -510,7 +549,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Desktop transfer accepts protected copies only: no original values and no restore mapping are transferred. Existing reversible mappings remain only in the encrypted local Vault where they were created.',
+                  'Desktop transfer is always explicit and item-by-item. Protected copy never includes original values. Full offline session transfers the Restore mapping only through the authenticated pinned-TLS connection and immediately stores it separately in the AES-256-GCM Mobile Vault. There is no automatic Library sync.',
                   style: TextStyle(color: PgColors.textSecondary, height: 1.35),
                 ),
               ),
@@ -540,15 +579,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _emptyStateBody(int filter) {
     switch (filter) {
       case 1:
-        return 'Desktop-protected copies you explicitly save appear here.';
+        return 'Desktop items you explicitly save appear here.';
       case 2:
-        return 'Protected copies explicitly saved on this mobile device appear here.';
+        return 'Protected copies explicitly created on this mobile device appear here.';
       case 3:
-        return 'Reversible protected copies with an encrypted local mapping appear here.';
+        return 'Items with a Restore mapping encrypted in the local Mobile Vault appear here.';
       case 4:
-        return 'Tap the star on a saved protected copy to keep it in Favorites.';
+        return 'Tap the star on a saved item to keep it in Favorites.';
       default:
-        return 'Protect content locally, or refresh authorized Desktop copies and explicitly save the ones you want offline.';
+        return 'Protect content locally, or refresh authorized Desktop items and explicitly save the ones you want offline.';
     }
   }
 }
@@ -556,27 +595,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
 class _DesktopGrantTile extends StatelessWidget {
   const _DesktopGrantTile({
     required this.grant,
-    required this.saved,
+    required this.satisfied,
+    required this.actionLabel,
     required this.saving,
     required this.disabled,
     required this.onSave,
   });
 
   final DesktopProtectedCopyGrant grant;
-  final bool saved;
+  final bool satisfied;
+  final String actionLabel;
   final bool saving;
   final bool disabled;
   final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
+    final full = grant.isFullOfflineSession;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PgIconBox(icon: Icons.desktop_windows_outlined),
+            PgIconBox(
+              icon: full ? Icons.lock_clock_outlined : Icons.desktop_windows_outlined,
+              foreground: full ? PgColors.purple : PgColors.blue,
+              background: full ? PgColors.purpleSoft : PgColors.blueSoft,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -603,6 +649,8 @@ class _DesktopGrantTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (satisfied)
+              const Icon(Icons.check_circle_rounded, color: PgColors.green),
           ],
         ),
         const SizedBox(height: 9),
@@ -610,11 +658,28 @@ class _DesktopGrantTile extends StatelessWidget {
           spacing: 7,
           runSpacing: 7,
           children: [
-            const _LibraryBadge(label: 'PROTECTED COPY'),
-            const _LibraryBadge(label: 'NO RESTORE MAPPING', positive: true),
+            _LibraryBadge(
+              label: full ? 'FULL OFFLINE SESSION' : 'PROTECTED COPY',
+              positive: full,
+            ),
+            _LibraryBadge(
+              label: full ? 'ENCRYPTED RESTORE' : 'NO RESTORE',
+              positive: full,
+            ),
             for (final entity in grant.entityTypes.take(3))
               _LibraryBadge(label: entity.replaceAll('_', ' ')),
           ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          full
+              ? 'Saving this item stores its Restore mapping separately in the encrypted Mobile Vault so Restore works offline.'
+              : 'Saving this item stores protected content only. No original values or Restore mapping are downloaded.',
+          style: const TextStyle(
+            color: PgColors.textSecondary,
+            fontSize: 12,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 10),
         Align(
@@ -626,14 +691,10 @@ class _DesktopGrantTile extends StatelessWidget {
                     dimension: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Icon(saved ? Icons.sync_rounded : Icons.save_outlined),
-            label: Text(
-              saving
-                  ? 'Saving…'
-                  : saved
-                      ? 'Update local copy'
-                      : 'Save to Library',
-            ),
+                : Icon(
+                    satisfied ? Icons.sync_rounded : Icons.save_outlined,
+                  ),
+            label: Text(actionLabel),
           ),
         ),
       ],
@@ -668,7 +729,14 @@ class _LibraryDocumentTile extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PgIconBox(icon: Icons.description_outlined),
+            PgIconBox(
+              icon: document.hasMapping
+                  ? Icons.lock_clock_outlined
+                  : Icons.description_outlined,
+              foreground: document.hasMapping ? PgColors.purple : PgColors.blue,
+              background:
+                  document.hasMapping ? PgColors.purpleSoft : PgColors.blueSoft,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -714,14 +782,14 @@ class _LibraryDocumentTile extends StatelessWidget {
           spacing: 7,
           runSpacing: 7,
           children: [
-            _LibraryBadge(label: document.replacementMode.toUpperCase()),
+            _LibraryBadge(
+              label: document.replacementMode.replaceAll('_', ' ').toUpperCase(),
+              positive: document.hasMapping,
+            ),
             if (document.sourceKind == 'desktop')
               const _LibraryBadge(label: 'DESKTOP'),
             if (document.hasMapping)
-              const _LibraryBadge(
-                label: 'RESTORABLE',
-                positive: true,
-              ),
+              const _LibraryBadge(label: 'RESTORABLE', positive: true),
             for (final entity in document.entityTypes.take(3))
               _LibraryBadge(label: entity.replaceAll('_', ' ')),
           ],
