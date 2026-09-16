@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/mobile_design.dart';
+import '../../core/desktop_link/desktop_link_credential_store.dart';
+import '../../core/desktop_link/desktop_protected_copy.dart';
+import '../../core/desktop_link/desktop_protected_copy_client.dart';
 import '../../core/domain/library_document.dart';
 import '../../core/library/protected_library_service.dart';
 import '../../core/settings/privacy_gate_settings.dart';
@@ -25,13 +28,21 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
+  final DesktopProtectedCopyClient _desktopCopies =
+      DesktopProtectedCopyClient(DesktopLinkCredentialStore());
+
   var _filter = 0;
   var _loading = false;
+  var _desktopBusy = false;
+  var _desktopPaired = false;
   var _usedBytes = 0;
   String? _error;
+  String? _desktopMessage;
   String? _openingDocumentId;
+  String? _savingGrantId;
   ProtectedLibraryService? _service;
   List<LibraryDocument> _documents = const [];
+  List<DesktopProtectedCopyGrant> _desktopGrants = const [];
 
   static const _filters = [
     _LibraryFilterData('All', Icons.done_rounded),
@@ -83,12 +94,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
     });
     try {
       final service = await widget.libraryProvider();
+      final paired = await _desktopCopies.hasCredential();
       if (!mounted) return;
       if (!identical(_service, service)) {
         _service?.removeListener(_serviceChanged);
         _service = service;
         service.addListener(_serviceChanged);
       }
+      setState(() => _desktopPaired = paired);
       await _refreshDocuments(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -118,6 +131,79 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (showLoading && mounted) setState(() => _loading = false);
     }
   }
+
+  Future<void> _refreshDesktopCopies() async {
+    if (_desktopBusy) return;
+    final paired = await _desktopCopies.hasCredential();
+    if (!mounted) return;
+    if (!paired) {
+      setState(() {
+        _desktopPaired = false;
+        _desktopGrants = const [];
+        _desktopMessage =
+            'Pair a trusted Desktop in Settings before refreshing protected copies.';
+      });
+      return;
+    }
+
+    setState(() {
+      _desktopBusy = true;
+      _desktopPaired = true;
+      _desktopMessage = null;
+    });
+    try {
+      final grants = await _desktopCopies.listGrants();
+      if (!mounted) return;
+      setState(() {
+        _desktopGrants = grants;
+        _desktopMessage = grants.isEmpty
+            ? 'No protected copies are authorized for this device.'
+            : '${grants.length} protected ${grants.length == 1 ? 'copy is' : 'copies are'} available from Desktop.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _desktopMessage = error.toString());
+    } finally {
+      if (mounted) setState(() => _desktopBusy = false);
+    }
+  }
+
+  Future<void> _saveDesktopGrant(DesktopProtectedCopyGrant grant) async {
+    if (_savingGrantId != null) return;
+    setState(() {
+      _savingGrantId = grant.grantId;
+      _desktopMessage = null;
+    });
+    try {
+      final service = _service ?? await widget.libraryProvider();
+      if (!identical(_service, service)) {
+        _service?.removeListener(_serviceChanged);
+        _service = service;
+        service.addListener(_serviceChanged);
+      }
+      final copy = await _desktopCopies.fetch(grant.grantId);
+      if (copy.documentId != grant.documentId) {
+        throw const DesktopProtectedCopyException(
+          'Desktop returned a different document than the authorized grant.',
+        );
+      }
+      final document = await service.saveDesktopProtectedCopy(copy);
+      await _refreshDocuments(showLoading: false);
+      if (!mounted) return;
+      setState(() {
+        _desktopMessage =
+            '${document.title} saved locally as a protected-only copy. No restore mapping was transferred.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _desktopMessage = error.toString());
+    } finally {
+      if (mounted) setState(() => _savingGrantId = null);
+    }
+  }
+
+  bool _isDesktopGrantSaved(DesktopProtectedCopyGrant grant) => _documents
+      .any((document) => document.documentId == grant.localDocumentId);
 
   Future<void> _toggleFavorite(LibraryDocument document) async {
     final service = _service;
@@ -153,9 +239,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
             .where((document) => document.sourceKind != 'desktop')
             .toList(growable: false);
       case 3:
-        return _documents.where((document) => document.hasMapping).toList(growable: false);
+        return _documents
+            .where((document) => document.hasMapping)
+            .toList(growable: false);
       case 4:
-        return _documents.where((document) => document.favorite).toList(growable: false);
+        return _documents
+            .where((document) => document.favorite)
+            .toList(growable: false);
       default:
         return _documents;
     }
@@ -236,40 +326,61 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ),
         const SizedBox(height: 16),
         PgCard(
-          backgroundColor: PgColors.greenSoft,
+          backgroundColor:
+              _desktopPaired ? PgColors.greenSoft : const Color(0xFFFFF8EE),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 410;
               final status = Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const PgIconBox(
-                    icon: Icons.desktop_windows_outlined,
-                    foreground: PgColors.green,
+                  PgIconBox(
+                    icon: _desktopPaired
+                        ? Icons.desktop_windows_outlined
+                        : Icons.link_off_rounded,
+                    foreground: _desktopPaired
+                        ? PgColors.green
+                        : PgColors.textSecondary,
                     background: Colors.white,
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Desktop not connected',
-                          style: TextStyle(
+                          _desktopPaired
+                              ? 'Trusted Desktop paired'
+                              : 'Desktop not connected',
+                          style: const TextStyle(
                             color: PgColors.navy,
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        SizedBox(height: 3),
+                        const SizedBox(height: 3),
                         Text(
-                          'Pairing and sync are not enabled in this build yet.',
-                          style: TextStyle(color: PgColors.textSecondary),
+                          _desktopPaired
+                              ? 'Refresh lists only copies explicitly authorized for this device. Nothing is downloaded automatically.'
+                              : 'Pair a trusted Desktop in Settings to receive explicitly authorized protected copies.',
+                          style: const TextStyle(color: PgColors.textSecondary),
                         ),
                       ],
                     ),
                   ),
                 ],
+              );
+              final refreshButton = OutlinedButton.icon(
+                onPressed: !_desktopPaired || _desktopBusy
+                    ? null
+                    : _refreshDesktopCopies,
+                icon: _desktopBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+                label: const Text('Refresh protected copies'),
               );
 
               if (compact) {
@@ -278,10 +389,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   children: [
                     status,
                     const SizedBox(height: 12),
-                    const OutlinedButton(
-                      onPressed: null,
-                      child: Text('Sync now'),
-                    ),
+                    refreshButton,
                   ],
                 );
               }
@@ -290,15 +398,49 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 children: [
                   Expanded(child: status),
                   const SizedBox(width: 12),
-                  const OutlinedButton(
-                    onPressed: null,
-                    child: Text('Sync now'),
-                  ),
+                  refreshButton,
                 ],
               );
             },
           ),
         ),
+        if (_desktopMessage != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            _desktopMessage!,
+            style: const TextStyle(color: PgColors.textSecondary),
+          ),
+        ],
+        if (_desktopGrants.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          PgCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const PgSectionHeader(title: 'Available from Desktop'),
+                const SizedBox(height: 4),
+                const Text(
+                  'These items are authorized for this device. Protected content is transferred only after you choose Save to Library.',
+                  style: TextStyle(color: PgColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                for (var index = 0;
+                    index < _desktopGrants.length;
+                    index++) ...[
+                  _DesktopGrantTile(
+                    grant: _desktopGrants[index],
+                    saved: _isDesktopGrantSaved(_desktopGrants[index]),
+                    saving: _savingGrantId == _desktopGrants[index].grantId,
+                    disabled: _savingGrantId != null,
+                    onSave: () => _saveDesktopGrant(_desktopGrants[index]),
+                  ),
+                  if (index != _desktopGrants.length - 1)
+                    const Divider(height: 20),
+                ],
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         PgCard(
           child: Column(
@@ -313,7 +455,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   IconButton(
                     tooltip: 'Refresh Library',
-                    onPressed: _loading ? null : () => _refreshDocuments(showLoading: true),
+                    onPressed: _loading
+                        ? null
+                        : () => _refreshDocuments(showLoading: true),
                     icon: const Icon(Icons.refresh_rounded),
                   ),
                 ],
@@ -337,11 +481,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   body: _emptyStateBody(_filter),
                 )
               else
-                for (var index = 0; index < visibleDocuments.length; index++) ...[
+                for (var index = 0;
+                    index < visibleDocuments.length;
+                    index++) ...[
                   _LibraryDocumentTile(
                     document: visibleDocuments[index],
-                    opening: _openingDocumentId == visibleDocuments[index].documentId,
-                    onFavorite: () => _toggleFavorite(visibleDocuments[index]),
+                    opening: _openingDocumentId ==
+                        visibleDocuments[index].documentId,
+                    onFavorite: () =>
+                        _toggleFavorite(visibleDocuments[index]),
                     onRestore: visibleDocuments[index].hasMapping
                         ? () => _openRestore(visibleDocuments[index])
                         : null,
@@ -362,7 +510,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Only protected copies are indexed here. Original values used for reversible restore live only inside the encrypted local Vault and are never exposed to MCP or AI providers.',
+                  'Desktop transfer accepts protected copies only: no original values and no restore mapping are transferred. Existing reversible mappings remain only in the encrypted local Vault where they were created.',
                   style: TextStyle(color: PgColors.textSecondary, height: 1.35),
                 ),
               ),
@@ -392,7 +540,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _emptyStateBody(int filter) {
     switch (filter) {
       case 1:
-        return 'Desktop-protected documents will appear here only after trusted pairing is implemented.';
+        return 'Desktop-protected copies you explicitly save appear here.';
       case 2:
         return 'Protected copies explicitly saved on this mobile device appear here.';
       case 3:
@@ -400,8 +548,102 @@ class _LibraryScreenState extends State<LibraryScreen> {
       case 4:
         return 'Tap the star on a saved protected copy to keep it in Favorites.';
       default:
-        return 'Protect content, run the verification scan, then use Save to Library.';
+        return 'Protect content locally, or refresh authorized Desktop copies and explicitly save the ones you want offline.';
     }
+  }
+}
+
+class _DesktopGrantTile extends StatelessWidget {
+  const _DesktopGrantTile({
+    required this.grant,
+    required this.saved,
+    required this.saving,
+    required this.disabled,
+    required this.onSave,
+  });
+
+  final DesktopProtectedCopyGrant grant;
+  final bool saved;
+  final bool saving;
+  final bool disabled;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PgIconBox(icon: Icons.desktop_windows_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    grant.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: PgColors.navy,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${grant.findingsCount} protected · ${_formatDate(grant.updatedAt)}',
+                    style: const TextStyle(
+                      color: PgColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            const _LibraryBadge(label: 'PROTECTED COPY'),
+            const _LibraryBadge(label: 'NO RESTORE MAPPING', positive: true),
+            for (final entity in grant.entityTypes.take(3))
+              _LibraryBadge(label: entity.replaceAll('_', ' ')),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: disabled ? null : onSave,
+            icon: saving
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(saved ? Icons.sync_rounded : Icons.save_outlined),
+            label: Text(
+              saving
+                  ? 'Saving…'
+                  : saved
+                      ? 'Update local copy'
+                      : 'Save to Library',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _formatDate(DateTime value) {
+    final local = value.toLocal();
+    String two(int item) => item.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
   }
 }
 
@@ -457,8 +699,12 @@ class _LibraryDocumentTile extends StatelessWidget {
               tooltip: document.favorite ? 'Remove favorite' : 'Add favorite',
               onPressed: onFavorite,
               icon: Icon(
-                document.favorite ? Icons.star_rounded : Icons.star_border_rounded,
-                color: document.favorite ? const Color(0xFFF0A000) : PgColors.textSecondary,
+                document.favorite
+                    ? Icons.star_rounded
+                    : Icons.star_border_rounded,
+                color: document.favorite
+                    ? const Color(0xFFF0A000)
+                    : PgColors.textSecondary,
               ),
             ),
           ],
@@ -469,6 +715,8 @@ class _LibraryDocumentTile extends StatelessWidget {
           runSpacing: 7,
           children: [
             _LibraryBadge(label: document.replacementMode.toUpperCase()),
+            if (document.sourceKind == 'desktop')
+              const _LibraryBadge(label: 'DESKTOP'),
             if (document.hasMapping)
               const _LibraryBadge(
                 label: 'RESTORABLE',
