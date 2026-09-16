@@ -47,16 +47,13 @@ class PgHeader extends StatelessWidget {
     super.key,
   });
 
-  /// Optional explicit override retained for screens that need to force a
-  /// preview state. Normal app screens leave this null and use the shared
-  /// Desktop reachability monitor.
   final bool? connected;
 
   @override
   Widget build(BuildContext context) {
     if (connected != null) {
       return _buildHeader(
-        connected! ? DesktopLinkStatus.connected : DesktopLinkStatus.unpaired,
+        connected! ? DesktopLinkStatus.connectedLocal : DesktopLinkStatus.unpaired,
       );
     }
     return ValueListenableBuilder<DesktopLinkStatus>(
@@ -67,10 +64,14 @@ class PgHeader extends StatelessWidget {
 
   Widget _buildHeader(DesktopLinkStatus status) {
     final (dotColor, label) = switch (status) {
-      DesktopLinkStatus.connected => (PgColors.green, 'Desktop connected'),
+      DesktopLinkStatus.connectedLocal =>
+        (PgColors.green, 'Desktop connected · Local'),
+      DesktopLinkStatus.connectedRemote =>
+        (PgColors.green, 'Desktop connected · Remote'),
       DesktopLinkStatus.checking => (PgColors.blue, 'Checking Desktop…'),
-      DesktopLinkStatus.offline => (PgColors.orange, 'Desktop paired · offline'),
-      DesktopLinkStatus.unpaired => (const Color(0xFF98A2B6), 'Desktop not paired'),
+      DesktopLinkStatus.offline => (PgColors.orange, 'Desktop paired · Offline'),
+      DesktopLinkStatus.unpaired =>
+        (const Color(0xFF98A2B6), 'Desktop not paired'),
     };
 
     return Padding(
@@ -219,15 +220,13 @@ class PgCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: backgroundColor,
-      elevation: 2,
-      shadowColor: const Color(0x1415223A),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: PgColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
         padding: padding,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: PgColors.border),
+        ),
         child: child,
       ),
     );
@@ -235,39 +234,18 @@ class PgCard extends StatelessWidget {
 }
 
 class PgSectionHeader extends StatelessWidget {
-  const PgSectionHeader({
-    required this.title,
-    this.action,
-    this.onAction,
-    super.key,
-  });
-
+  const PgSectionHeader({required this.title, super.key});
   final String title;
-  final String? action;
-  final VoidCallback? onAction;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: PgColors.navy,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+  Widget build(BuildContext context) => Text(
+        title,
+        style: const TextStyle(
+          color: PgColors.navy,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
         ),
-        if (action != null)
-          TextButton(
-            onPressed: onAction,
-            child: Text(action!),
-          ),
-      ],
-    );
-  }
+      );
 }
 
 class PgIconBox extends StatelessWidget {
@@ -275,7 +253,7 @@ class PgIconBox extends StatelessWidget {
     required this.icon,
     this.foreground = PgColors.blue,
     this.background = PgColors.blueSoft,
-    this.size = 46,
+    this.size = 42,
     super.key,
   });
 
@@ -285,17 +263,15 @@ class PgIconBox extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Icon(icon, color: foreground, size: size * 0.52),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: foreground, size: size * .52),
+      );
 }
 
 class PgEmptyState extends StatelessWidget {
@@ -311,76 +287,31 @@ class PgEmptyState extends StatelessWidget {
   final String body;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        PgIconBox(icon: icon, size: 52),
-        const SizedBox(height: 12),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: PgColors.navy,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          body,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: PgColors.textSecondary,
-            height: 1.35,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Uses horizontal columns on wider layouts and automatically stacks the same
-/// cards on phones. This keeps Desktop-parity content readable without
-/// compressing desktop rows into narrow mobile columns.
-class PgResponsiveColumns extends StatelessWidget {
-  const PgResponsiveColumns({
-    required this.children,
-    this.breakpoint = 620,
-    this.spacing = 12,
-    super.key,
-  });
-
-  final List<Widget> children;
-  final double breakpoint;
-  final double spacing;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (children.isEmpty) return const SizedBox.shrink();
-        if (constraints.maxWidth < breakpoint) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var index = 0; index < children.length; index++) ...[
-                children[index],
-                if (index != children.length - 1) SizedBox(height: spacing),
-              ],
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 22),
+        child: Column(
           children: [
-            for (var index = 0; index < children.length; index++) ...[
-              Expanded(child: children[index]),
-              if (index != children.length - 1) SizedBox(width: spacing),
-            ],
+            Icon(icon, size: 42, color: PgColors.textSecondary),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: PgColors.navy,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: PgColors.textSecondary,
+                height: 1.35,
+              ),
+            ),
           ],
-        );
-      },
-    );
-  }
+        ),
+      );
 }
