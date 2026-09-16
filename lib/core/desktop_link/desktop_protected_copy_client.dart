@@ -12,7 +12,7 @@ class DesktopProtectedCopyException implements Exception {
   final String message;
 
   @override
-  String toString() => 'DesktopProtectedCopyException: $message';
+  String toString() => message;
 }
 
 class DesktopProtectedCopyClient {
@@ -127,18 +127,20 @@ class DesktopProtectedCopyClient {
       }
       DesktopLinkPresence.set(DesktopLinkStatus.connected);
       return payload;
-    } on SocketException catch (error) {
+    } on SocketException {
       DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      throw DesktopProtectedCopyException(
-        'Desktop is unreachable on the local network: $error',
+      throw const DesktopProtectedCopyException(
+        'Desktop is offline or unreachable. Open PrivacyGate Desktop and make sure Device Trust shows Online.',
       );
-    } on TimeoutException catch (error) {
+    } on TimeoutException {
       DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      throw DesktopProtectedCopyException('Desktop request timed out: $error');
-    } on HandshakeException catch (error) {
+      throw const DesktopProtectedCopyException(
+        'Desktop did not respond. Check that PrivacyGate Desktop is open and Device Trust shows Online.',
+      );
+    } on HandshakeException {
       DesktopLinkPresence.set(DesktopLinkStatus.offline);
-      throw DesktopProtectedCopyException(
-        'Desktop TLS identity could not be verified: $error',
+      throw const DesktopProtectedCopyException(
+        'Desktop identity could not be verified. Re-pair this device from Device Trust.',
       );
     } on FormatException catch (error) {
       throw DesktopProtectedCopyException(error.message);
