@@ -40,7 +40,7 @@ class DesktopPairingClient {
       method: 'POST',
       path: '/v1/mobile/pair',
       body: {
-        'code': bootstrap.pairingCode,
+        'pairing_code': bootstrap.pairingCode,
         'client_id': clientId,
         'client_name': clientName,
       },
@@ -124,7 +124,8 @@ Future<Map<String, dynamic>> _requestJson({
   final endpoint = bootstrap?.endpoint ?? connection!.endpoint;
   final certificatePem = bootstrap?.certificatePem ?? connection!.certificatePem;
   final base = Uri.parse(endpoint);
-  final uri = base.replace(path: Uri.parse(path).path, query: Uri.parse(path).query);
+  final parsedPath = Uri.parse(path);
+  final uri = base.replace(path: parsedPath.path, query: parsedPath.query);
   final context = SecurityContext(withTrustedRoots: false);
   context.setTrustedCertificatesBytes(utf8.encode(certificatePem));
   final client = HttpClient(context: context)
