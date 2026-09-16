@@ -26,20 +26,20 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
+  static const _filters = [
+    ('All', Icons.done_rounded),
+    ('Desktop', Icons.desktop_windows_outlined),
+    ('Mobile Offline', Icons.phone_android_outlined),
+    ('Restorable', Icons.restore_rounded),
+    ('Favorites', Icons.star_border_rounded),
+  ];
+
   var _filter = 0;
   bool _busy = false;
   DesktopConnection? _connection;
   List<ProtectedCopyGrant> _available = const [];
   List<ProtectedCopyDocument> _local = const [];
   String? _message;
-
-  static const _filters = [
-    _LibraryFilterData('All', Icons.done_rounded),
-    _LibraryFilterData('Desktop', Icons.desktop_windows_outlined),
-    _LibraryFilterData('Mobile Offline', Icons.phone_android_outlined),
-    _LibraryFilterData('Restorable', Icons.restore_rounded),
-    _LibraryFilterData('Favorites', Icons.star_border_rounded),
-  ];
 
   @override
   void initState() {
@@ -77,7 +77,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       });
       return;
     }
-
     setState(() {
       _busy = true;
       _message = null;
@@ -93,8 +92,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             : '${grants.length} protected ${grants.length == 1 ? 'copy is' : 'copies are'} available from Desktop.';
       });
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _message = error.toString());
+      if (mounted) setState(() => _message = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -117,11 +115,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (!mounted) return;
       setState(() {
         _local = local;
-        _message = '${document.title} saved locally as a protected-only copy. No restore mapping was stored.';
+        _message = '${document.title} saved as a protected-only copy. No restore mapping was stored.';
       });
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _message = error.toString());
+      if (mounted) setState(() => _message = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -133,26 +130,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (!mounted) return;
     setState(() {
       _local = local;
-      _message = 'Mobile copy removed. The Desktop protected Library is unchanged.';
+      _message = 'Mobile copy removed. The Desktop Library is unchanged.';
     });
   }
 
-  bool _isSaved(String documentId) => _local.any((item) => item.documentId == documentId);
+  bool _isSaved(String id) => _local.any((item) => item.documentId == id);
 
-  List<ProtectedCopyDocument> get _filteredLocal {
-    switch (_filter) {
-      case 1:
-        return _local.where((item) => item.sourceKind == 'protected').toList(growable: false);
-      case 2:
-        return _local;
-      case 3:
-        return const [];
-      case 4:
-        return _local.where((item) => item.favorite).toList(growable: false);
-      default:
-        return _local;
-    }
-  }
+  List<ProtectedCopyDocument> get _filteredLocal => switch (_filter) {
+        1 => _local.where((item) => item.sourceKind == 'protected').toList(growable: false),
+        2 => _local,
+        3 => const [],
+        4 => _local.where((item) => item.favorite).toList(growable: false),
+        _ => _local,
+      };
 
   int get _usedBytes => _local.fold<int>(
         0,
@@ -163,7 +153,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget build(BuildContext context) {
     final settings = widget.settings;
     final capacityBytes = settings.effectiveVaultMegabytes * 1024 * 1024;
-    final usage = capacityBytes == 0 ? 0.0 : (_usedBytes / capacityBytes).clamp(0.0, 1.0);
+    final usage = capacityBytes == 0
+        ? 0.0
+        : (_usedBytes / capacityBytes).clamp(0.0, 1.0).toDouble();
     final filtered = _filteredLocal;
 
     return PgPage(
@@ -171,9 +163,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const PgHeader(),
         const PgTitle(
           title: 'Library',
-          subtitle: 'Protected copies kept on this device only when you explicitly save them.',
+          subtitle: 'Protected copies stay local only when you explicitly save them.',
         ),
-        _LibraryFilterBar(
+        _FilterBar(
           selected: _filter,
           onSelected: (value) => setState(() => _filter = value),
         ),
@@ -184,10 +176,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
             children: [
               const PgSectionHeader(title: 'Mobile Vault'),
               const Text(
-                'Protected-only copies are stored in platform secure storage and cannot restore original values.',
+                'Protected-only copies are kept in platform secure storage and cannot restore originals.',
                 style: TextStyle(color: PgColors.textSecondary),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               ClipRRect(
                 borderRadius: BorderRadius.circular(99),
                 child: LinearProgressIndicator(
@@ -196,7 +188,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   backgroundColor: const Color(0xFFE5EAF3),
                 ),
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -213,16 +205,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final preset in VaultStoragePreset.values)
+                    ChoiceChip(
+                      label: Text(preset.label),
+                      selected: settings.vaultStoragePreset == preset,
+                      onSelected: (_) => settings.setVaultStoragePreset(preset),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
         PgCard(
           backgroundColor: _connection == null ? const Color(0xFFFFF8EE) : PgColors.greenSoft,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final status = Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
                   PgIconBox(
                     icon: _connection == null ? Icons.link_off_rounded : Icons.desktop_windows_outlined,
@@ -236,16 +241,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       children: [
                         Text(
                           _connection == null ? 'Desktop not connected' : 'Trusted Desktop paired',
-                          style: const TextStyle(
-                            color: PgColors.navy,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: const TextStyle(color: PgColors.navy, fontSize: 17, fontWeight: FontWeight.w800),
                         ),
-                        const SizedBox(height: 3),
                         Text(
                           _connection == null
-                              ? 'Pair in Settings to receive explicitly authorized protected copies.'
+                              ? 'Pair in Settings to receive explicitly authorized copies.'
                               : 'Refresh lists grants only. Nothing is saved automatically.',
                           style: const TextStyle(color: PgColors.textSecondary),
                         ),
@@ -253,8 +253,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                   ),
                 ],
-              );
-              final refresh = OutlinedButton.icon(
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
                 onPressed: _connection == null || _busy ? null : _refreshFromDesktop,
                 icon: _busy
                     ? const SizedBox.square(
@@ -262,24 +263,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh_rounded),
-                label: const Text('Refresh grants'),
-              );
-              if (constraints.maxWidth < 430) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [status, const SizedBox(height: 12), refresh],
-                );
-              }
-              return Row(children: [Expanded(child: status), const SizedBox(width: 12), refresh]);
-            },
+                label: const Text('Refresh protected copies'),
+              ),
+            ],
           ),
         ),
         if (_message != null) ...[
           const SizedBox(height: 12),
           Text(_message!, style: const TextStyle(color: PgColors.textSecondary)),
         ],
-        const SizedBox(height: 16),
-        if (_available.isNotEmpty)
+        if (_available.isNotEmpty) ...[
+          const SizedBox(height: 16),
           PgCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,12 +281,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 const PgSectionHeader(title: 'Available from Desktop'),
                 const SizedBox(height: 4),
                 const Text(
-                  'Each item was explicitly authorized for this paired device. Save is still manual.',
+                  'These items were explicitly granted to this device. Save remains a separate action.',
                   style: TextStyle(color: PgColors.textSecondary),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 for (var index = 0; index < _available.length; index++) ...[
-                  _AvailableGrantTile(
+                  _GrantTile(
                     grant: _available[index],
                     saved: _isSaved(_available[index].documentId),
                     busy: _busy,
@@ -303,22 +297,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ],
             ),
           ),
-        if (_available.isNotEmpty) const SizedBox(height: 16),
+        ],
+        const SizedBox(height: 16),
         PgCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PgSectionHeader(title: 'Files in ${_filters[_filter].label.toLowerCase()}'),
+              PgSectionHeader(title: 'Files in ${_filters[_filter].$1.toLowerCase()}'),
               const SizedBox(height: 12),
               if (filtered.isEmpty)
                 PgEmptyState(
-                  icon: _filters[_filter].icon,
+                  icon: _filters[_filter].$2,
                   title: 'No files here yet',
                   body: _emptyStateBody(_filter),
                 )
               else
                 for (var index = 0; index < filtered.length; index++) ...[
-                  _LocalDocumentTile(
+                  _LocalTile(
                     document: filtered[index],
                     onDelete: () => _deleteLocal(filtered[index]),
                   ),
@@ -337,7 +332,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Protected-copy transfer accepts only mode=protected_copy with has_mapping=false. Any mapping-bearing payload is rejected before local persistence.',
+                  'Protected-copy transfer accepts only mode=protected_copy with has_mapping=false. Mapping-bearing payloads are rejected before local persistence.',
                   style: TextStyle(color: PgColors.textSecondary, height: 1.35),
                 ),
               ),
@@ -350,35 +345,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   String _storageLabel(int megabytes) {
     if (megabytes >= 1024) {
-      final gigabytes = megabytes / 1024;
-      return '${gigabytes.toStringAsFixed(gigabytes == gigabytes.roundToDouble() ? 0 : 1)} GB capacity';
+      final gb = megabytes / 1024;
+      return '${gb.toStringAsFixed(gb == gb.roundToDouble() ? 0 : 1)} GB capacity';
     }
     return '$megabytes MB capacity';
   }
 
-  String _emptyStateBody(int filter) {
-    switch (filter) {
-      case 1:
-        return 'Desktop-protected copies you explicitly saved appear here.';
-      case 2:
-        return 'Files explicitly saved for offline mobile access appear here.';
-      case 3:
-        return 'Protected-only Desktop copies are intentionally not restorable offline.';
-      case 4:
-        return 'Favorite protected files appear here.';
-      default:
-        return 'Refresh Desktop grants, then choose Save to Library on the specific item you want offline.';
-    }
-  }
+  String _emptyStateBody(int filter) => switch (filter) {
+        1 => 'Desktop-protected copies you explicitly saved appear here.',
+        2 => 'Files explicitly saved for offline access appear here.',
+        3 => 'Protected-only Desktop copies are intentionally not restorable offline.',
+        4 => 'Favorite protected files appear here.',
+        _ => 'Refresh Desktop grants, then choose Save to Library on the item you want offline.',
+      };
 }
 
-class _AvailableGrantTile extends StatelessWidget {
-  const _AvailableGrantTile({
-    required this.grant,
-    required this.saved,
-    required this.busy,
-    required this.onSave,
-  });
+class _GrantTile extends StatelessWidget {
+  const _GrantTile({required this.grant, required this.saved, required this.busy, required this.onSave});
 
   final ProtectedCopyGrant grant;
   final bool saved;
@@ -389,30 +372,32 @@ class _AvailableGrantTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const PgIconBox(icon: Icons.shield_outlined, size: 38),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  grant.title,
-                  style: const TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const PgIconBox(icon: Icons.shield_outlined, size: 38),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(grant.title, style: const TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800)),
+                    Text(
+                      '${grant.findingsCount} protected finding(s) · Protected only · No mapping',
+                      style: const TextStyle(color: PgColors.textSecondary),
+                    ),
+                  ],
                 ),
-                Text(
-                  '${grant.findingsCount} protected finding(s) · Protected only · No mapping',
-                  style: const TextStyle(color: PgColors.textSecondary),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 8),
           FilledButton(
             onPressed: saved || busy ? null : onSave,
-            child: Text(saved ? 'Saved' : 'Save to Library'),
+            child: Text(saved ? 'Saved to Library' : 'Save to Library'),
           ),
         ],
       ),
@@ -420,8 +405,8 @@ class _AvailableGrantTile extends StatelessWidget {
   }
 }
 
-class _LocalDocumentTile extends StatelessWidget {
-  const _LocalDocumentTile({required this.document, required this.onDelete});
+class _LocalTile extends StatelessWidget {
+  const _LocalTile({required this.document, required this.onDelete});
 
   final ProtectedCopyDocument document;
   final VoidCallback onDelete;
@@ -439,10 +424,7 @@ class _LocalDocumentTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  document.title,
-                  style: const TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800),
-                ),
+                Text(document.title, style: const TextStyle(color: PgColors.navy, fontWeight: FontWeight.w800)),
                 const Text(
                   'Protected only · Stored locally · Cannot restore originals',
                   style: TextStyle(color: PgColors.textSecondary),
@@ -468,57 +450,30 @@ class _LocalDocumentTile extends StatelessWidget {
   }
 }
 
-class _LibraryFilterBar extends StatelessWidget {
-  const _LibraryFilterBar({required this.selected, required this.onSelected});
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({required this.selected, required this.onSelected});
 
   final int selected;
   final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 560) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<int>(
-              segments: [
-                for (var index = 0; index < _LibraryScreenState._filters.length; index++)
-                  ButtonSegment(
-                    value: index,
-                    label: Text(_LibraryScreenState._filters[index].label),
-                    icon: Icon(_LibraryScreenState._filters[index].icon),
-                  ),
-              ],
-              selected: {selected},
-              onSelectionChanged: (value) => onSelected(value.first),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var index = 0; index < _LibraryScreenState._filters.length; index++)
+          ChoiceChip(
+            avatar: Icon(
+              _LibraryScreenState._filters[index].$2,
+              size: 18,
+              color: selected == index ? PgColors.blue : PgColors.textSecondary,
             ),
-          );
-        }
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (var index = 0; index < _LibraryScreenState._filters.length; index++)
-              ChoiceChip(
-                avatar: Icon(
-                  _LibraryScreenState._filters[index].icon,
-                  size: 18,
-                  color: selected == index ? PgColors.blue : PgColors.textSecondary,
-                ),
-                label: Text(_LibraryScreenState._filters[index].label),
-                selected: selected == index,
-                onSelected: (_) => onSelected(index),
-              ),
-          ],
-        );
-      },
+            label: Text(_LibraryScreenState._filters[index].$1),
+            selected: selected == index,
+            onSelected: (_) => onSelected(index),
+          ),
+      ],
     );
   }
-}
-
-class _LibraryFilterData {
-  const _LibraryFilterData(this.label, this.icon);
-  final String label;
-  final IconData icon;
 }
