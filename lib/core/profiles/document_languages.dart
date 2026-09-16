@@ -1,3 +1,5 @@
+import '../detection/detection_pack_catalog.dart';
+
 class DocumentLanguage {
   const DocumentLanguage({required this.code, required this.label});
 
@@ -5,12 +7,17 @@ class DocumentLanguage {
   final String label;
 }
 
-const defaultDocumentLanguage = 'en';
+final String defaultDocumentLanguage = detectionPackCatalog.defaultLanguage;
 
-const documentLanguages = <DocumentLanguage>[
-  DocumentLanguage(code: 'en', label: 'English'),
-  DocumentLanguage(code: 'it', label: 'Italiano'),
-];
+final List<DocumentLanguage> documentLanguages =
+    List<DocumentLanguage>.unmodifiable(
+  detectionPackCatalog.languageValues.map(
+    (value) => DocumentLanguage(
+      code: value['code'] as String,
+      label: value['label'] as String,
+    ),
+  ),
+);
 
 DocumentLanguage getDocumentLanguage(String code) =>
     documentLanguages.firstWhere((language) => language.code == code);
