@@ -62,10 +62,87 @@ class DesktopLinkClient {
         method: 'GET',
       );
       final paired = response['paired'] == true;
+      if (paired) {
+        final serverName = response['client_name'];
+        if (serverName is String &&
+            serverName.trim().isNotEmpty &&
+            serverName != credential.clientName) {
+          await credentials.save(_renamedCredential(credential, serverName));
+        }
+      }
       DesktopLinkPresence.set(
         paired ? DesktopLinkStatus.connected : DesktopLinkStatus.offline,
       );
       return paired;
+    } catch (_) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      rethrow;
+    }
+  }
+
+  Future<DesktopLinkCredential> renameDevice(String newName) async {
+    final credential = await credentials.load();
+    if (credential == null) {
+      DesktopLinkPresence.set(DesktopLinkStatus.unpaired);
+      throw const DesktopLinkProtocolException('No paired Desktop is configured.');
+    }
+    final normalized = newName.trim();
+    if (normalized.isEmpty) {
+      throw const DesktopLinkProtocolException('Device name cannot be empty.');
+    }
+    if (normalized.length > 80) {
+      throw const DesktopLinkProtocolException(
+        'Device name cannot exceed 80 characters.',
+      );
+    }
+    DesktopLinkPresence.set(DesktopLinkStatus.checking);
+    try {
+      final response = await _postJson(
+        endpoint: credential.endpoint,
+        path: '/v1/mobile/device',
+        pinnedCertificatePem: credential.certificatePem,
+        bearerToken: credential.mobileToken,
+        body: {'client_name': normalized},
+        method: 'PATCH',
+      );
+      final serverName = response['client_name'];
+      if (serverName is! String || serverName.trim().isEmpty) {
+        throw const DesktopLinkProtocolException(
+          'Desktop returned an invalid device name.',
+        );
+      }
+      final updated = _renamedCredential(credential, serverName.trim());
+      await credentials.save(updated);
+      DesktopLinkPresence.set(DesktopLinkStatus.connected);
+      return updated;
+    } catch (_) {
+      DesktopLinkPresence.set(DesktopLinkStatus.offline);
+      rethrow;
+    }
+  }
+
+  Future<void> removeDevice() async {
+    final credential = await credentials.load();
+    if (credential == null) {
+      await forget();
+      return;
+    }
+    DesktopLinkPresence.set(DesktopLinkStatus.checking);
+    try {
+      final response = await _postJson(
+        endpoint: credential.endpoint,
+        path: '/v1/mobile/device',
+        pinnedCertificatePem: credential.certificatePem,
+        bearerToken: credential.mobileToken,
+        body: const {},
+        method: 'DELETE',
+      );
+      if (response['removed'] != true) {
+        throw const DesktopLinkProtocolException(
+          'Desktop did not remove this paired device.',
+        );
+      }
+      await forget();
     } catch (_) {
       DesktopLinkPresence.set(DesktopLinkStatus.offline);
       rethrow;
@@ -332,12 +409,12 @@ class DesktopLinkClient {
       );
       final request = await client.openUrl(method, uri).timeout(const Duration(seconds: 3));
       request.followRedirects = false;
-      request.headers.contentType = ContentType.json;
       request.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
       if (bearerToken != null) {
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
       }
-      if (method != 'GET') {
+      if (method != 'GET' && method != 'DELETE') {
+        request.headers.contentType = ContentType.json;
         final bodyBytes = utf8.encode(jsonEncode(body));
         request.contentLength = bodyBytes.length;
         request.add(bodyBytes);
@@ -365,6 +442,19 @@ class DesktopLinkClient {
       client.close(force: true);
     }
   }
+
+  static DesktopLinkCredential _renamedCredential(
+    DesktopLinkCredential credential,
+    String name,
+  ) =>
+      DesktopLinkCredential(
+        endpoint: credential.endpoint,
+        mobileToken: credential.mobileToken,
+        certificatePem: credential.certificatePem,
+        detectionPackSha256: credential.detectionPackSha256,
+        clientId: credential.clientId,
+        clientName: name,
+      );
 
   static String _normalizePem(String value) => value.replaceAll('\r\n', '\n').trim();
 
