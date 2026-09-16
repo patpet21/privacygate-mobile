@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../core/detection/desktop_rule_detector.dart';
+import '../core/mobile_link/desktop_connection.dart';
 import '../core/protection/privacy_gate_protector.dart';
 import '../core/protection/protection_policy.dart';
 import '../core/settings/privacy_gate_settings.dart';
+import '../core/vault/protected_library_repository.dart';
 import '../features/activity/activity_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
@@ -24,6 +26,8 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
   late final PrivacyGateSettings _settings;
   late final ProtectionPolicy _protectionPolicy;
   late final ProtectController _protectController;
+  late final DesktopConnectionStore _desktopConnectionStore;
+  late final SecureProtectedLibraryRepository _protectedLibrary;
   var _selectedIndex = 0;
 
   @override
@@ -31,6 +35,8 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
     super.initState();
     _settings = PrivacyGateSettings();
     _protectionPolicy = ProtectionPolicy();
+    _desktopConnectionStore = DesktopConnectionStore();
+    _protectedLibrary = SecureProtectedLibraryRepository();
     _protectController = ProtectController(
       detector: const DesktopRuleDetector(),
       protector: const PrivacyGateProtector(),
@@ -101,8 +107,7 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
           style: FilledButton.styleFrom(
             backgroundColor: PgColors.blue,
             foregroundColor: Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             textStyle: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
@@ -110,8 +115,7 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
           style: OutlinedButton.styleFrom(
             foregroundColor: PgColors.blue,
             side: const BorderSide(color: Color(0xFFB9D2FF)),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
@@ -140,9 +144,16 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
               controller: _protectController,
               onOpenRestore: _openRestore,
             ),
-            LibraryScreen(settings: _settings),
+            LibraryScreen(
+              settings: _settings,
+              connectionStore: _desktopConnectionStore,
+              repository: _protectedLibrary,
+            ),
             const ActivityScreen(),
-            SettingsScreen(settings: _settings),
+            SettingsScreen(
+              settings: _settings,
+              connectionStore: _desktopConnectionStore,
+            ),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -170,8 +181,7 @@ class _PrivacyGateAppState extends State<PrivacyGateApp> {
             NavigationDestination(
               key: ValueKey('nav-activity'),
               icon: Icon(Icons.monitor_heart_outlined),
-              selectedIcon:
-                  Icon(Icons.monitor_heart_rounded, color: PgColors.blue),
+              selectedIcon: Icon(Icons.monitor_heart_rounded, color: PgColors.blue),
               label: 'Activity',
             ),
             NavigationDestination(
